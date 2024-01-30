@@ -11,7 +11,7 @@
 		socialSecurityTaxAmount,
 		/** @type {number}*/
 		medicareTaxAmount,
-		/** @type {"annual"|"monthly"|"biweekly"}*/
+		/** @type {"annual"|"monthly"|"fortnightly"}*/
 		interval,
 		/** @type {string}*/
 		currentState
@@ -63,7 +63,7 @@
 					displaySocialSecurityTaxAmount +
 					displayMedicareTaxAmount;
 				break;
-			case 'biweekly':
+			case 'fortnightly':
 				displayStateTaxAmount = stateTaxAmount / 26;
 				displayFederalTaxAmount = federalTaxAmount / 26;
 				displayCityTaxAmount = cityTaxAmount / 26;
@@ -85,7 +85,7 @@
 
 <h2 style="text-transform: capitalize;">{interval} Taxes - {currentState}</h2>
 
-<table>
+<table style="border-collapse: collapse;">
 	<thead>
 		<tr>
 			<th>Tax</th>
@@ -114,8 +114,8 @@
 			<td>{formatAsCurrency(displayMedicareTaxAmount)}</td>
 		</tr>
 		<tr>
-			<td>Total</td>
-			<td>{formatAsCurrency(displayTotalTaxAmount)}</td>
+			<td style="border-top: 1px solid black; font-weight: bold;">Total</td>
+			<td style="border-top: 1px solid black; font-weight: bold;">{formatAsCurrency(displayTotalTaxAmount)}</td>
 		</tr></tbody
 	>
 </table>

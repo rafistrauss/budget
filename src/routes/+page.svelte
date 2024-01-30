@@ -4,13 +4,16 @@
 	import { formatAsCurrency, safelyGetLocalStorage, safelySetLocalStorage } from '$lib';
 	import TaxesByState from '$lib/TaxesByState.svelte';
 
-	let yearlySalary1 = 100_000;
+	let yearlySalary1 = 100000;
 	let bonusPercentage1 = 5;
-	let _401kContributionPercentage1 = 5;
+	let _401kContributionPercentage1 = 3;
 	let health_care_fsa_contribution = 1000;
-	let dependent_care_fsa_contribution = 1_000;
-	
-	let yearlySalary2 = 50000;
+	let dependent_care_fsa_contribution = 500;
+	let medical_deduction = 100;
+	let dental_deduction = 50;
+	let vision_deduction = 25;
+
+	let yearlySalary2 = 0;
 	let bonusPercentage2 = 0;
 	let _401kContributionPercentage2 = 0;
 	let currentState = 'New Jersey';
@@ -23,17 +26,16 @@
 	 */
 	let expenses = []; // Array to store expenses, each expense will be an object { label: string, amount: number }
 
-	let 
-	/** @type {number} */
-	yearlyBonus1,
-	/** @type {number} */
-	yearly401kContribution1,
-	/** @type {number} */
-	yearlyBonus2,
-	/** @type {number} */
-	yearly401kContribution2,
-	/** @type {number} */
-	taxableIncome;
+	let /** @type {number} */
+		yearlyBonus1,
+		/** @type {number} */
+		yearly401kContribution1,
+		/** @type {number} */
+		yearlyBonus2,
+		/** @type {number} */
+		yearly401kContribution2,
+		/** @type {number} */
+		taxableIncome;
 
 	$: {
 		yearlyBonus1 = yearlySalary1 * (bonusPercentage1 / 100);
@@ -69,62 +71,106 @@
 <main>
 	<h1>Budget Calculator</h1>
 
-<section>
-	<h2>Salary input</h2>
-	<div style="display: flex; gap: 1em;">
-		<div>
-			<h3>Person 1</h3>
-			<label for="yearlySalary1">Yearly Salary:</label>
-			<input type="number" id="yearlySalary1" bind:value={yearlySalary1} />
-			<br />
-		
-			<label for="bonusPercentage1">Expected Bonus (%):</label>
-			<input type="number" id="bonusPercentage1" bind:value={bonusPercentage1} />
-		
-			<br />
-			<label for="contributionPercentage1">401k Contribution (%):</label>
-			<input type="number" id="contributionPercentage1" bind:value={_401kContributionPercentage1} />
+	<section>
+		<h2>Salary input</h2>
+		<div style="display: flex; gap: 1em;">
+			<div>
+				<h3>Person 1</h3>
+				<label for="yearlySalary1">Yearly Salary:</label>
+				<input type="number" id="yearlySalary1" bind:value={yearlySalary1} />
+				<br />
+
+				<label for="bonusPercentage1">Expected Bonus (%):</label>
+				<input type="number" id="bonusPercentage1" bind:value={bonusPercentage1} />
+
+				<br />
+				<br />
+				<label for="contributionPercentage1">401k Contribution (%):</label>
+				<input
+					type="number"
+					id="contributionPercentage1"
+					bind:value={_401kContributionPercentage1}
+				/>
+				<br />
+				<label for="healthCareContribution">Healthcare FSA Contribution ($):</label>
+				<input
+					type="number"
+					id="healthCareContribution"
+					bind:value={health_care_fsa_contribution}
+				/>
+				<br />
+				<label for="dependentCareContribution">Dependent Care FSA Contribution ($):</label>
+				<input
+					type="number"
+					id="dependentCareContribution"
+					bind:value={dependent_care_fsa_contribution}
+				/>
+				<br />
+				<br />
+				<label for="medicalDeduction">Medical Deduction ($):</label>
+				<input type="number" id="medicalDeduction" bind:value={medical_deduction} />
+				<br />
+				<label for="dentalDeduction">Dental Deduction ($):</label>
+				<input type="number" id="dentalDeduction" bind:value={dental_deduction} />
+				<br />
+				<label for="visionDeduction">Vision Deduction ($):</label>
+				<input type="number" id="visionDeduction" bind:value={vision_deduction} />
+				<br />
+			</div>
+			<div style="color: gray;">
+				<em>Multiple salaries not yet supported</em>
+				<h3>Person 2</h3>
+				<label for="yearlySalary2">Yearly Salary:</label>
+				<input disabled="disabled" type="number" id="yearlySalary2" bind:value={yearlySalary2} />
+				<br />
+
+				<label for="bonusPercentage2">Expected Bonus (%):</label>
+				<input
+					disabled="disabled"
+					type="number"
+					id="bonusPercentage2"
+					bind:value={bonusPercentage2}
+				/>
+
+				<br />
+				<label for="contributionPercentage2">401k Contribution (%):</label>
+				<input
+					disabled="disabled"
+					type="number"
+					id="contributionPercentage2"
+					bind:value={_401kContributionPercentage2}
+				/>
+			</div>
 		</div>
-		<div>
-			<h3>Person 2</h3>
-			<label for="yearlySalary2">Yearly Salary:</label>
-			<input type="number" id="yearlySalary2" bind:value={yearlySalary2} />
-			<br />
-		
-			<label for="bonusPercentage2">Expected Bonus (%):</label>
-			<input type="number" id="bonusPercentage2" bind:value={bonusPercentage2} />
-		
-			<br />
-			<label for="contributionPercentage2">401k Contribution (%):</label>
-			<input type="number" id="contributionPercentage2" bind:value={_401kContributionPercentage2} />
-		</div>
-	</div>
+	</section>
 
-</section>
+	<p>
+		<label for="currentYear">Current Year:</label>
+		<select id="currentYear" bind:value={currentYear}>
+			<option value="">-- Select Year --</option>
+			<option value="2023">2023</option>
+			<option value="2024">2024</option>
+		</select>
 
-	<label for="currentYear">Current Year:</label>
-	<select id="currentYear" bind:value={currentYear}>
-		<option value="">-- Select Year --</option>
-		<option value="2023">2023</option>
-		<option value="2024">2024</option>
-	</select>
+		<br />
 
-	<br />
-
-	<label for="currentState">Current US State:</label>
-	<select id="currentState" bind:value={currentState}>
-		<option value="">-- Select State --</option>
-		<option value="New York">New York (NY)</option>
-		<option value="New Jersey">New Jersey (NJ)</option>
-		<!-- Add options for other states if needed -->
-	</select>
+		<label for="currentState">Current US State:</label>
+		<select id="currentState" bind:value={currentState}>
+			<option value="">-- Select State --</option>
+			<option value="New York">New York (NY)</option>
+			<option value="New Jersey">New Jersey (NJ)</option>
+			<!-- Add options for other states if needed -->
+		</select>
+	</p>
 
 	<hr />
 
-	<br /><b>Bonus:</b> {formatAsCurrency(yearlyBonus1)}
-	<br /><b>401K Contribution:</b> {formatAsCurrency(yearly401kContribution1)}
+	<br /><b>Bonus:</b>
+	{formatAsCurrency(yearlyBonus1)}
+	<br /><b>401K Contribution:</b>
+	{formatAsCurrency(yearly401kContribution1)}
 
-<p>	Gross Monthly Income: {formatAsCurrency((yearlySalary1 / 12) + (yearlySalary2 / 12))}</p>
+	<p>Gross Monthly Income: {formatAsCurrency(yearlySalary1 / 12 + yearlySalary2 / 12)}</p>
 	<hr />
 
 	<!-- Gross monthly income -->
@@ -177,6 +223,9 @@
 				yearlySalary={yearlySalary1 + yearlySalary2}
 				contributionPercentage={_401kContributionPercentage1 + _401kContributionPercentage2}
 				{interval}
+				monthlyDentalContribution={dental_deduction / 12}
+				monthlyMedicalContribution={medical_deduction / 12}
+				monthlyVisionContribution={vision_deduction / 12}
 			/>
 		</div>
 		<!-- <div>
@@ -190,7 +239,7 @@
 			/>
 		</div> -->
 	</div>
-	<section>
+	<section style="display: none;">
 		<h3>Expenses</h3>
 		<button on:click={addExpense}>Add Expense</button>
 
@@ -208,7 +257,8 @@
 	main {
 		max-width: 800px;
 		margin: 0 auto;
-		font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+		font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu,
+			Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
 	}
 
 	.interval {

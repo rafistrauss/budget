@@ -10,8 +10,8 @@
 	} from '$lib';
 	import TaxesDisplay from './TaxesDisplay.svelte';
 
-	export let currentYear = "2023",
-	currentState = 'New York',
+	export let currentYear = '2023',
+		currentState = 'New York',
 		taxableIncome,
 		/** @type {number} */
 		yearlySalary,
@@ -22,13 +22,18 @@
 		/**
 		 * @type {number}
 		 */
-		 health_care_fsa_contribution,
+		health_care_fsa_contribution,
 		/**
 		 * @type {number}
 		 */
-		 dependent_care_fsa_contribution,
-
-		interval;
+		dependent_care_fsa_contribution,
+		interval,
+		/** @type {number} */
+		monthlyMedicalContribution = 0,
+		/** @type {number} */
+		monthlyDentalContribution = 0,
+		/** @type {number} */
+		monthlyVisionContribution = 0;
 
 	let yearlyBonus;
 	/**
@@ -49,15 +54,10 @@
 		/** @type {number}*/
 		yearlyHealthcareFSAContribution,
 		/** @type {number} */
-		yearlyDependentCareFSAContribution,
-		/** @type {number} */
-		monthlyMedicalContribution = 371.36,
-		/** @type {number} */
-		monthlyDentalContribution = 25.64,
-		/** @type {number} */
-		monthlyVisionContribution = 3.97;
+		yearlyDependentCareFSAContribution;
 	let monthlyTakeHome = 0;
 	let biweeklyTakeHome = 0;
+	let annualTakeHome = 0;
 	/**
 	 * @type {{ rates: import("$lib").TaxRate[]; }}
 	 */
@@ -65,7 +65,7 @@
 
 	$: {
 		taxRate = taxRatesFilingJointly[currentYear][currentState];
-		
+
 		yearly401kContribution = yearlySalary * (contributionPercentage / 100);
 		yearlyHealthcareFSAContribution = health_care_fsa_contribution;
 		yearlyDependentCareFSAContribution = dependent_care_fsa_contribution;
@@ -101,26 +101,19 @@
 		socialSecurityTaxAmount = calculateTax(taxableIncome, socialSecurityTaxRates[currentYear]);
 		medicareTaxAmount = calculateTax(taxableIncome, medicareTaxRates);
 
-		monthlyTakeHome =
-			(taxableIncome -
-				stateTaxAmount -
-				federalTaxAmount -
-				cityTaxAmount -
-				socialSecurityTaxAmount -
-				medicareTaxAmount) /
-			12;
+		annualTakeHome =
+			taxableIncome -
+			stateTaxAmount -
+			federalTaxAmount -
+			cityTaxAmount -
+			socialSecurityTaxAmount -
+			medicareTaxAmount;
 
-		biweeklyTakeHome =
-			(taxableIncome -
-				stateTaxAmount -
-				federalTaxAmount -
-				cityTaxAmount -
-				socialSecurityTaxAmount -
-				medicareTaxAmount) /
-			26;
+		monthlyTakeHome = annualTakeHome / 12;
+
+		biweeklyTakeHome = annualTakeHome / 26;
 	}
 </script>
-
 
 Taxable income: {formatAsCurrency(taxableIncome)}
 
@@ -131,9 +124,13 @@ Taxable income: {formatAsCurrency(taxableIncome)}
 	{socialSecurityTaxAmount}
 	{medicareTaxAmount}
 	{interval}
-    {currentState}
+	{currentState}
 />
 
-
-<p>Your monthly take-home pay: {formatAsCurrency(monthlyTakeHome)}</p>
-<p>Your biweekly take-home pay: {formatAsCurrency(biweeklyTakeHome)}</p>
+<p>
+	Your monthly take-home pay: {formatAsCurrency(monthlyTakeHome)}
+	<br />
+	Your biweekly take-home pay: {formatAsCurrency(biweeklyTakeHome)}
+	<br />
+	Your annual take-home pay: {formatAsCurrency(annualTakeHome)}
+</p>
