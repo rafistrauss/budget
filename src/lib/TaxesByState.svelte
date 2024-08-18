@@ -4,13 +4,16 @@
 		formatAsCurrency,
 		medicareTaxRates,
 		socialSecurityTaxRates,
-		standardDeductionsFilingJointly,
+		standardDeductions,
 		taxRatesFilingJointly,
 		taxRatesFilingJointly_City
 	} from '$lib';
 	import TaxesDisplay from './TaxesDisplay.svelte';
 
-	export let currentYear = '2023',
+	
+	export let
+	/** @type {'2023'|'2024'} */
+	 currentYear = '2023',
 		currentState = 'New York',
 		taxableIncome,
 		/** @type {number} */
@@ -33,7 +36,10 @@
 		/** @type {number} */
 		monthlyDentalContribution = 0,
 		/** @type {number} */
-		monthlyVisionContribution = 0;
+		monthlyVisionContribution = 0,
+		/** @type {"single"|"joint"} */
+		filingStatus = 'joint';
+
 
 	let yearlyBonus;
 	/**
@@ -54,7 +60,15 @@
 		/** @type {number}*/
 		yearlyHealthcareFSAContribution,
 		/** @type {number} */
-		yearlyDependentCareFSAContribution;
+		yearlyDependentCareFSAContribution,
+		/** @type {number} */
+		stateStandardTaxDeduction,
+		/** @type {number} */
+		federalStandardTaxDeduction,
+		/** @type {number} */
+		cityStandardTaxDeduction;
+
+
 	let monthlyTakeHome = 0;
 	let biweeklyTakeHome = 0;
 	let annualTakeHome = 0;
@@ -83,20 +97,24 @@
 			yearlyDentalContribution -
 			yearlyVisionContribution;
 
+		stateStandardTaxDeduction = standardDeductions?.[currentYear]?.[filingStatus]?.[currentState]?.state ?? 0;
+		federalStandardTaxDeduction = standardDeductions?.[currentYear]?.[filingStatus]?.federal ?? 0;
+		cityStandardTaxDeduction = standardDeductions?.[currentYear]?.[filingStatus]?.[currentState]?.city ?? 0;
+
 		stateTaxAmount = calculateTax(
 			taxableIncome,
 			taxRate,
-			standardDeductionsFilingJointly[currentState].state
+			stateStandardTaxDeduction
 		);
 		federalTaxAmount = calculateTax(
 			taxableIncome,
 			taxRatesFilingJointly[currentYear].Federal,
-			standardDeductionsFilingJointly.federal
+			federalStandardTaxDeduction
 		);
 		cityTaxAmount = calculateTax(
 			taxableIncome,
-			taxRatesFilingJointly_City[currentState],
-			standardDeductionsFilingJointly[currentState].city
+			taxRatesFilingJointly_City[currentYear][currentState],
+			cityStandardTaxDeduction
 		);
 		socialSecurityTaxAmount = calculateTax(taxableIncome, socialSecurityTaxRates[currentYear]);
 		medicareTaxAmount = calculateTax(taxableIncome, medicareTaxRates);
