@@ -31,15 +31,22 @@
 	let yearlySalary1 = 100000;
 	let bonusPercentage1 = 5;
 	let _401kContributionPercentage1 = 3;
-	let health_care_fsa_contribution = 100;
-	let dependent_care_fsa_contribution = 100;
+	let health_care_fsa_contribution_1 = 100;
+	let dependent_care_fsa_contribution_1 = 100;
 	let annual_medical_deduction_1 = 1234;
 	let annual_dental_deduction_1 = 123;
 	let annual_vision_deduction_1 = 12;
-
+	
 	let yearlySalary2 = 0;
 	let bonusPercentage2 = 0;
 	let _401kContributionPercentage2 = 0;
+	let health_care_fsa_contribution_2 = 0;
+	let dependent_care_fsa_contribution_2 = 0;
+	let annual_medical_deduction_2 = 0;
+	let annual_dental_deduction_2 = 0;
+	let annual_vision_deduction_2 = 0;
+
+	
 	let currentState = 'New Jersey';
 	let currentYear = '2024';
 
@@ -113,8 +120,8 @@
 			const data = snapshot.data();
 			if (data) {
 				_401kContributionPercentage1 = data['401k_contribution_1'];
-				health_care_fsa_contribution = data['healthcare_fsa_contribution_1'];
-				dependent_care_fsa_contribution = data['dependent_care_fsa_contribution_1'];
+				health_care_fsa_contribution_1 = data['healthcare_fsa_contribution_1'];
+				dependent_care_fsa_contribution_1 = data['dependent_care_fsa_contribution_1'];
 				annual_medical_deduction_1 = data['annual_medical_deduction_1'];
 				annual_dental_deduction_1 = data['annual_dental_deduction_1'];
 				annual_vision_deduction_1 ??= data['annual_vision_deduction_1'];
@@ -143,7 +150,12 @@
 					<input type="email" id="email" bind:value={email} autocomplete="email" />
 					<br />
 					<label for="password">Password:</label>
-					<input type="password" id="password" bind:value={password} autocomplete="current-password" />
+					<input
+						type="password"
+						id="password"
+						bind:value={password}
+						autocomplete="current-password"
+					/>
 					<br />
 					<button on:click={signIn}>Sign In</button>
 				</form>
@@ -152,7 +164,7 @@
 
 		<section>
 			<h2>Salary input</h2>
-			<div id="salaryInput">
+			<div class="splitDisplay">
 				<div>
 					<h3>Person 1</h3>
 					<label for="yearlySalary1">Yearly Salary:</label>
@@ -175,14 +187,14 @@
 					<input
 						type="number"
 						id="healthCareContribution"
-						bind:value={health_care_fsa_contribution}
+						bind:value={health_care_fsa_contribution_1}
 					/>
 					<br />
 					<label for="dependentCareContribution">Dependent Care FSA Contribution ($):</label>
 					<input
 						type="number"
 						id="dependentCareContribution"
-						bind:value={dependent_care_fsa_contribution}
+						bind:value={dependent_care_fsa_contribution_1}
 					/>
 					<br />
 					<br />
@@ -196,16 +208,14 @@
 					<input type="number" id="visionDeduction" bind:value={annual_vision_deduction_1} />
 					<br />
 				</div>
-				<div style="color: gray;">
-					<em>Multiple salaries not yet supported</em>
+				<div>
 					<h3>Person 2</h3>
 					<label for="yearlySalary2">Yearly Salary:</label>
-					<input disabled="disabled" type="number" id="yearlySalary2" bind:value={yearlySalary2} />
+					<input type="number" id="yearlySalary2" bind:value={yearlySalary2} />
 					<br />
 
 					<label for="bonusPercentage2">Expected Bonus (%):</label>
 					<input
-						disabled="disabled"
 						type="number"
 						id="bonusPercentage2"
 						bind:value={bonusPercentage2}
@@ -214,11 +224,35 @@
 					<br />
 					<label for="contributionPercentage2">401k Contribution (%):</label>
 					<input
-						disabled="disabled"
 						type="number"
 						id="contributionPercentage2"
 						bind:value={_401kContributionPercentage2}
 					/>
+					<br />
+					<label for="healthCareContribution">Healthcare FSA Contribution ($):</label>
+					<input
+						type="number"
+						id="healthCareContribution"
+						bind:value={health_care_fsa_contribution_2}
+					/>
+					<br />
+					<label for="dependentCareContribution">Dependent Care FSA Contribution ($):</label>
+					<input
+						type="number"
+						id="dependentCareContribution"
+						bind:value={dependent_care_fsa_contribution_2}
+					/>
+					<br />
+					<br />
+					<label for="medicalDeduction">Medical Deduction ($):</label>
+					<input type="number" id="medicalDeduction" bind:value={annual_medical_deduction_2} />
+					<br />
+					<label for="dentalDeduction">Dental Deduction ($):</label>
+					<input type="number" id="dentalDeduction" bind:value={annual_dental_deduction_2} />
+					<br />
+					<label for="visionDeduction">Vision Deduction ($):</label>
+					<input type="number" id="visionDeduction" bind:value={annual_vision_deduction_2} />
+					<br />
 				</div>
 			</div>
 		</section>
@@ -244,12 +278,14 @@
 
 		<hr />
 
-		<br /><b>Bonus:</b>
-		{formatAsCurrency(yearlyBonus1)}
-		<br /><b>401K Contribution:</b>
-		{formatAsCurrency(yearly401kContribution1)}
-
-		<p>Gross Monthly Income: {formatAsCurrency(yearlySalary1 / 12 + yearlySalary2 / 12)}</p>
+		<div class="splitDisplay">
+			<br /><b>Bonus:</b>
+			{formatAsCurrency(yearlyBonus1)}
+			<br /><b>401K Contribution:</b>
+			{formatAsCurrency(yearly401kContribution1)}
+	
+			<p>Gross Monthly Income: {formatAsCurrency(yearlySalary1 / 12 + yearlySalary2 / 12)}</p>
+		</div>
 		<hr />
 
 		<!-- Gross monthly income -->
@@ -297,14 +333,14 @@
 					{currentState}
 					{currentYear}
 					{taxableIncome}
-					{health_care_fsa_contribution}
-					{dependent_care_fsa_contribution}
-					yearlySalary={yearlySalary1 + yearlySalary2}
-					contributionPercentage={_401kContributionPercentage1 + _401kContributionPercentage2}
+					health_care_fsa_contributions={[health_care_fsa_contribution_1, health_care_fsa_contribution_2]}
+					dependent_care_fsa_contributions={[dependent_care_fsa_contribution_1, dependent_care_fsa_contribution_2]}
+					yearlySalaries={[yearlySalary1,yearlySalary2]}
+					contributionPercentages={[_401kContributionPercentage1, _401kContributionPercentage2]}
 					{interval}
-					monthlyDentalContribution={annual_dental_deduction_1 / 12}
-					monthlyMedicalContribution={annual_medical_deduction_1 / 12}
-					monthlyVisionContribution={annual_vision_deduction_1 / 12}
+					monthlyDentalContributions={[annual_dental_deduction_1 / 12, annual_dental_deduction_2 / 12]}
+					monthlyMedicalContributions={[annual_medical_deduction_1 / 12, annual_medical_deduction_2 / 12]}
+					monthlyVisionContributions={[annual_vision_deduction_1 / 12, annual_vision_deduction_2 / 12]}
 				/>
 			</div>
 			<!-- <div>
@@ -350,14 +386,15 @@
 		grid-template-columns: 1fr 1fr;
 	}
 
-	#salaryInput {
+	.splitDisplay
+	 {
 		display: flex;
 		gap: 1em;
 		flex-direction: column;
 	}
 
 	@media (min-width: 768px) {
-		#salaryInput {
+		.splitDisplay {
 			flex-direction: row;
 		}
 	}
