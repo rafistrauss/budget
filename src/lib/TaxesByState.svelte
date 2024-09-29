@@ -73,33 +73,23 @@
 		yearly401kContributions = yearlySalaries.map(
 			(salary, index) => salary * (contributionPercentages[index] / 100)
 		);
-		yearlyHealthcareFSAContributions = yearlySalaries.map((_, index) => health_care_fsa_contributions[index]);
-		yearlyDependentCareFSAContributions = yearlySalaries.map((_, index) => dependent_care_fsa_contributions[index]);
+		yearlyHealthcareFSAContributions = yearlySalaries.map(
+			(_, index) => health_care_fsa_contributions[index]
+		);
+		yearlyDependentCareFSAContributions = yearlySalaries.map(
+			(_, index) => dependent_care_fsa_contributions[index]
+		);
 
 		let yearlyMedicalContributions = monthlyMedicalContributions.map(
 			(contribution) => contribution * 12
 		);
-		console.log("🔥 ~ monthlyMedicalContributions:", monthlyMedicalContributions)
 		let yearlyDentalContributions = monthlyDentalContributions.map(
 			(contribution) => contribution * 12
 		);
-		console.log("🔥 ~ monthlyDentalContributions:", monthlyDentalContributions)
 		let yearlyVisionContributions = monthlyVisionContributions.map(
 			(contribution) => contribution * 12
 		);
-		console.log("🔥 ~ monthlyVisionContributions:", monthlyVisionContributions)
-
 		taxableIncomes = yearlySalaries.map((salary, index) => {
-			console.log({
-				salary: salary,
-				yearly401kContributions: yearly401kContributions[index],
-				yearlyHealthcareFSAContributions: yearlyHealthcareFSAContributions[index],
-				yearlyDependentCareFSAContributions: yearlyDependentCareFSAContributions[index],
-				yearlyMedicalContributions: yearlyMedicalContributions[index],
-				yearlyDentalContributions: yearlyDentalContributions[index],
-				yearlyVisionContributions: yearlyVisionContributions[index]
-			});
-
 			return (
 				salary -
 				yearly401kContributions[index] -
