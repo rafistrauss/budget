@@ -10,7 +10,7 @@
 	} from '$lib';
 	import TaxesDisplay from './TaxesDisplay.svelte';
 
-	export let /** @type {'2023'|'2024'} */
+	export let /** @type {'2023'|'2024'|'2025'} */
 		currentYear = '2023',
 		currentState = 'New York',
 		/** @type {number[]} */

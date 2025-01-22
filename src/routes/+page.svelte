@@ -170,6 +170,12 @@
 					<label for="yearlySalary1">Yearly Salary:</label>
 					<input type="number" id="yearlySalary1" bind:value={yearlySalary1} />
 					<br />
+					<label for="salaryIncreasePercentage1">Increase Salary by (%):</label>
+					<input type="number" id="salaryIncreasePercentage1" />
+					<button on:click={() => yearlySalary1 += yearlySalary1 * (document.getElementById('salaryIncreasePercentage1').value / 100)}>
+						Increase Salary
+					</button>
+					<br />
 
 					<label for="bonusPercentage1">Expected Bonus (%):</label>
 					<input type="number" id="bonusPercentage1" bind:value={bonusPercentage1} />
@@ -263,6 +269,7 @@
 				<option value="">-- Select Year --</option>
 				<option value="2023">2023</option>
 				<option value="2024">2024</option>
+				<option value="2025">2025</option>
 			</select>
 
 			<br />
