@@ -7,7 +7,7 @@ const config = {
 	kit: {
 		adapter: adapter(),
 		paths: {
-			base: dev ? '' : '/jsdoc-generator'
+			base: dev ? '' : '/budget'
 		}
 	}
 };
