@@ -137,7 +137,7 @@
 
 <main>
 	<a href="{base}/checking">Go to Checking Page</a>
-	<h1>Budget Calculator</h1>
+	<h1>Budget Calculator v1</h1>
 
 	<section>
 		{#if currentUser}
