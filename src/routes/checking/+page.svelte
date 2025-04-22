@@ -218,6 +218,10 @@
         border: 1px solid #ccc;
         border-radius: 4px;
     }
+
+    .credit {
+        color: green;
+    }
 </style>
 
 <main>
@@ -270,14 +274,14 @@
     <h2>Transactions</h2>
     <ul>
         {#each transactions as { amount, date, type, title, runningTotal }, index}
-            <li>
+            <li class={type === 'credit' ? 'credit' : ''}>
                 {formatDate(date)}: {type} of {formatCurrency(amount)}{title ? ` - ${title}` : ''}
                 <button on:click={() => editTransaction(index)}>Edit</button>
                 <button on:click={() => removeTransaction(index)}>Remove</button>
                 {#if runningTotal < 0}
                     <span class="flag">⚠️</span>
-                    {/if}
-                    <span>{formatCurrency(runningTotal)}</span>
+                {/if}
+                <span>{formatCurrency(runningTotal)}</span>
             </li>
         {/each}
     </ul>
