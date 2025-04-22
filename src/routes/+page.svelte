@@ -1,13 +1,13 @@
 <script>
+	import { base } from '$app/paths';
+	import { onMount } from 'svelte';
+
 	import { initializeApp } from 'firebase/app';
 	import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
-	import { getFirestore, doc } from 'firebase/firestore';
-
-	import { onMount } from 'svelte';
+	import { doc, getDoc, getFirestore } from 'firebase/firestore';
 
 	import { formatAsCurrency, safelyGetLocalStorage, safelySetLocalStorage } from '$lib';
 	import TaxesByState from '$lib/TaxesByState.svelte';
-	import { getDoc } from 'firebase/firestore';
 
 	const firebaseConfig = {
 		apiKey: 'AIzaSyC_wqKaOmHf0Nq31JOZtCt3pSQN_m1FOLk',
@@ -136,6 +136,7 @@
 </script>
 
 <main>
+	<a href="{base}/checking">Go to Checking Page</a>
 	<h1>Budget Calculator</h1>
 
 	<section>
