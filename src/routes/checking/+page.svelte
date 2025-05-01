@@ -1,12 +1,30 @@
 <script>
     import dayjs from 'dayjs';
-
+    import { initializeApp } from 'firebase/app';
+    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
+    import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 
     const easternTimezone = 'America/New_York'; // Set timezone to Eastern
 
+    const firebaseConfig = {
+        apiKey: 'AIzaSyC_wqKaOmHf0Nq31JOZtCt3pSQN_m1FOLk',
+        authDomain: 'budget-e231f.firebaseapp.com',
+        projectId: 'budget-e231f',
+        storageBucket: 'budget-e231f.appspot.com',
+        messagingSenderId: '324153005171',
+        appId: '1:324153005171:web:1a3196daf6a3b148b94606'
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    let currentUser = null;
+    let email = '';
+    let password = '';
+
     let editingIndex = null;
-    let transactions = [
-    ];
+    let transactions = [];
     let balance = 0;
     let amount = '';
     let date = '';
@@ -15,6 +33,50 @@
     let runningTotal = 0;
     let belowZeroFlag = false;
     let belowZeroTransactions = [];
+
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            currentUser = user;
+            console.log('User signed in:', user);
+            const userDoc = await getDoc(doc(db, 'users', user.uid));
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+                if (userData.transactions) {
+                    transactions = userData.transactions.map(transaction => ({
+                        ...transaction,
+                        date: dayjs(transaction.date)
+                    }));
+                } else {
+                    transactions = []; // Initialize as an empty array if transactions are undefined
+                }
+                updateBalance();
+            }
+        } else {
+            currentUser = null;
+        }
+    });
+
+    async function syncTransactionsToFirebase() {
+        if (currentUser) {
+            const serializedTransactions = transactions.map(transaction => ({
+                ...transaction,
+                date: transaction.date instanceof dayjs ? transaction.date.toISOString() : transaction.date instanceof Date ? transaction.date.toISOString() : transaction.date
+            }));
+            await setDoc(doc(db, 'users', currentUser.uid), { transactions: serializedTransactions });
+        }
+    }
+
+    function signIn() {
+        if (!email || !password) return alert('Email and password are required');
+        signInWithEmailAndPassword(auth, email, password)
+            .then((userCredential) => {
+                currentUser = userCredential.user;
+            })
+            .catch((err) => {
+                console.error(err);
+                alert('Failed to sign in');
+            });
+    }
 
     function editTransaction(index) {
         const transaction = transactions[index];
@@ -41,7 +103,7 @@
             }
             sortTransactions();
             updateBalance();
-            localStorage.setItem('transactions', JSON.stringify(transactions));
+            syncTransactionsToFirebase();
             amount = '';
             date = '';
             title = '';
@@ -52,7 +114,7 @@
         transactions = transactions.filter((_, i) => i !== index);
         sortTransactions();
         updateBalance();
-        localStorage.setItem('transactions', JSON.stringify(transactions));
+        syncTransactionsToFirebase();
     }
 
     function addTransaction() {
@@ -66,7 +128,7 @@
             transactions = [...transactions, transaction];
             sortTransactions();
             updateBalance();
-            localStorage.setItem('transactions', JSON.stringify(transactions));
+            syncTransactionsToFirebase();
             amount = '';
             date = '';
             title = '';
@@ -95,7 +157,7 @@
     function clearAllTransactions() {
         transactions = [];
         updateBalance();
-        localStorage.setItem('transactions', JSON.stringify(transactions));
+        syncTransactionsToFirebase();
     }
 
     function setShortcut(amountValue, dateValue) {
@@ -218,15 +280,28 @@
         border: 1px solid #ccc;
         border-radius: 4px;
     }
-
-    .credit {
-        color: green;
-    }
 </style>
 
 <main>
     <h1>Checking Account Balance Tracker</h1>
     <p>Current Balance: <span class={balance < 0 ? 'negative' : ''}>{formatCurrency(balance)}</span></p>
+
+    {#if !currentUser}
+    <div>
+        <h2>Sign In</h2>
+        <form on:submit|preventDefault={signIn}>
+            <label>
+                Email:
+                <input type="email" bind:value={email} required />
+            </label>
+            <label>
+                Password:
+                <input type="password" bind:value={password} required />
+            </label>
+            <button type="submit">Sign In</button>
+        </form>
+    </div>
+{/if}
 
     {#if suggestCredit()}
         <div class="suggestion">
@@ -274,14 +349,14 @@
     <h2>Transactions</h2>
     <ul>
         {#each transactions as { amount, date, type, title, runningTotal }, index}
-            <li class={type === 'credit' ? 'credit' : ''}>
+            <li>
                 {formatDate(date)}: {type} of {formatCurrency(amount)}{title ? ` - ${title}` : ''}
                 <button on:click={() => editTransaction(index)}>Edit</button>
                 <button on:click={() => removeTransaction(index)}>Remove</button>
                 {#if runningTotal < 0}
                     <span class="flag">⚠️</span>
-                {/if}
-                <span>{formatCurrency(runningTotal)}</span>
+                    {/if}
+                    <span>{formatCurrency(runningTotal)}</span>
             </li>
         {/each}
     </ul>
