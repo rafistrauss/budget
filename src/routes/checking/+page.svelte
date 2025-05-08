@@ -92,7 +92,8 @@
     function editTransaction(index) {
         const transaction = transactions[index];
         amount = transaction.amount.toString();
-        date = new Date(transaction.date.getTime() + transaction.date.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+        const transactionDate = transaction.date instanceof dayjs ? transaction.date.toDate() : new Date(transaction.date);
+        date = dayjs(transactionDate).format('YYYY-MM-DD');
         type = transaction.type;
         title = transaction.title || '';
         editingIndex = index; // Ensure editingIndex is set correctly
@@ -102,7 +103,7 @@
         if (amount && date && title) {
             const transaction = {
                 amount: parseFloat(amount),
-                date: new Date(date),
+                date: dayjs(date), // Use dayjs instead of Date
                 type,
                 title
             };
