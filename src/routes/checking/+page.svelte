@@ -78,6 +78,17 @@
             });
     }
 
+    function logOut() {
+        auth.signOut()
+            .then(() => {
+                currentUser = null;
+                console.log('User signed out successfully');
+            })
+            .catch((error) => {
+                console.error('Error signing out:', error);
+            });
+    }
+
     function editTransaction(index) {
         const transaction = transactions[index];
         amount = transaction.amount.toString();
@@ -301,7 +312,11 @@
             <button type="submit">Sign In</button>
         </form>
     </div>
-{/if}
+    {/if}
+
+    {#if currentUser}
+        <button on:click={logOut}>Log Out</button>
+    {/if}
 
     {#if suggestCredit()}
         <div class="suggestion">
