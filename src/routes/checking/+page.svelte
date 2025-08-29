@@ -292,6 +292,14 @@
         border: 1px solid #ccc;
         border-radius: 4px;
     }
+    .credit-button {
+            background-color: #e6f9e6;
+            border: 1px solid #8fd88f;
+            color: #217821;
+        }
+        .credit-button:hover {
+            background-color: #d0f5d0;
+        }
 </style>
 
 <main>
@@ -353,13 +361,14 @@
     </div>
 
     <div class="shortcut-buttons">
+        <button class="credit-button" on:click={() => { setShortcut('', getUpcomingDate(1)); type = 'credit'; title = 'Transfer'; }}>Transfer</button>
         <button on:click={() => { setShortcut('3445', getUpcomingDate(1)); type = 'debit'; title = 'Rent'; }}>Rent</button>
         <button on:click={() => { setShortcut('723.5', getUpcomingDate(8)); type = 'debit'; title = 'Auto Loan'; }}>Auto Loan</button>
         <button on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Chase Credit Card'; }}>Chase Credit Card</button>
         <button on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Target Credit Card'; }}>Target Credit Card</button>
         <button on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Amazon Store Card'; }}>Amazon Store Card</button>
-        <button on:click={() => { setShortcut('1242.5', getUpcomingDate(1)); type = 'debit'; title = 'Anshei Tuition'; }}>Anshei Tuition</button>
-        <button on:click={() => { setShortcut('65', getUpcomingDate(1)); type = 'debit'; title = 'Anshei Registration'; }}>Anshei Registration</button>
+        <button on:click={() => { setShortcut('1297', getUpcomingDate(1)); type = 'debit'; title = 'Anshei Tuition'; }}>Anshei Tuition</button>
+        <button on:click={() => { setShortcut('50', getUpcomingDate(1)); type = 'debit'; title = 'Anshei Registration'; }}>Anshei Registration</button>
     </div>
 
     <h2>Transactions</h2>
