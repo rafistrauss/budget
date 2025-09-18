@@ -69,10 +69,10 @@
 		taxableIncome;
 
 	$: {
-		yearlyBonus1 = yearlySalary1 * (bonusPercentage1 / 100);
-		yearly401kContribution1 = yearlySalary1 * (_401kContributionPercentage1 / 100);
-		yearlyBonus2 = yearlySalary2 * (bonusPercentage2 / 100);
-		yearly401kContribution2 = yearlySalary2 * (_401kContributionPercentage2 / 100);
+		yearlyBonus1 = (yearlySalary1 || 0) * ((bonusPercentage1 || 0) / 100);
+		yearly401kContribution1 = (yearlySalary1 || 0) * ((_401kContributionPercentage1 || 0) / 100);
+		yearlyBonus2 = (yearlySalary2 || 0) * ((bonusPercentage2 || 0) / 100);
+		yearly401kContribution2 = (yearlySalary2 || 0) * ((_401kContributionPercentage2 || 0) / 100);
 	}
 
 	$: {
@@ -119,14 +119,14 @@
 			const snapshot = await getDoc(doc(db, 'users', user.uid));
 			const data = snapshot.data();
 			if (data) {
-				_401kContributionPercentage1 = data['401k_contribution_1'];
-				health_care_fsa_contribution_1 = data['healthcare_fsa_contribution_1'];
-				dependent_care_fsa_contribution_1 = data['dependent_care_fsa_contribution_1'];
-				annual_medical_deduction_1 = data['annual_medical_deduction_1'];
-				annual_dental_deduction_1 = data['annual_dental_deduction_1'];
-				annual_vision_deduction_1 ??= data['annual_vision_deduction_1'];
+				_401kContributionPercentage1 = data['401k_contribution_1'] ?? _401kContributionPercentage1;
+				health_care_fsa_contribution_1 = data['healthcare_fsa_contribution_1'] ?? health_care_fsa_contribution_1;
+				dependent_care_fsa_contribution_1 = data['dependent_care_fsa_contribution_1'] ?? dependent_care_fsa_contribution_1;
+				annual_medical_deduction_1 = data['annual_medical_deduction_1'] ?? annual_medical_deduction_1;
+				annual_dental_deduction_1 = data['annual_dental_deduction_1'] ?? annual_dental_deduction_1;
+				annual_vision_deduction_1 = data['annual_vision_deduction_1'] ?? annual_vision_deduction_1;
 				yearlySalary1 = data['yearly_salary_1'] ?? yearlySalary1;
-				bonusPercentage1 = data['expected_bonus_1'];
+				bonusPercentage1 = data['expected_bonus_1'] ?? bonusPercentage1;
 			}
 			console.log(snapshot.data());
 		} else {

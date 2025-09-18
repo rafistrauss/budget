@@ -71,23 +71,23 @@
 		taxRate = taxRatesFilingJointly[currentYear][currentState];
 
 		yearly401kContributions = yearlySalaries.map(
-			(salary, index) => salary * (contributionPercentages[index] / 100)
+			(salary, index) => (salary || 0) * ((contributionPercentages[index] || 0) / 100)
 		);
 		yearlyHealthcareFSAContributions = yearlySalaries.map(
-			(_, index) => health_care_fsa_contributions[index]
+			(_, index) => health_care_fsa_contributions[index] || 0
 		);
 		yearlyDependentCareFSAContributions = yearlySalaries.map(
-			(_, index) => dependent_care_fsa_contributions[index]
+			(_, index) => dependent_care_fsa_contributions[index] || 0
 		);
 
 		let yearlyMedicalContributions = monthlyMedicalContributions.map(
-			(contribution) => contribution * 12
+			(contribution) => (contribution || 0) * 12
 		);
 		let yearlyDentalContributions = monthlyDentalContributions.map(
-			(contribution) => contribution * 12
+			(contribution) => (contribution || 0) * 12
 		);
 		let yearlyVisionContributions = monthlyVisionContributions.map(
-			(contribution) => contribution * 12
+			(contribution) => (contribution || 0) * 12
 		);
 		taxableIncomes = yearlySalaries.map((salary, index) => {
 			return (

@@ -259,6 +259,10 @@ export const taxRatesFilingSingle = {
 };
 
 export const formatAsCurrency = (/** @type {number | bigint} */ amount) => {
+	// Handle NaN, null, undefined, and other invalid values
+	if (amount == null || isNaN(Number(amount))) {
+		return '$0.00';
+	}
 	return new Intl.NumberFormat('en-US', {
 		style: 'currency',
 		currency: 'USD'
