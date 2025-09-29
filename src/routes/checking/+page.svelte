@@ -19,11 +19,20 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
+    /**
+	 * @type {import("firebase/auth").User | null}
+	 */
     let currentUser = null;
     let email = '';
     let password = '';
 
+    /**
+	 * @type {string | number | null}
+	 */
     let editingIndex = null;
+    /**
+	 * @type {any[]}
+	 */
     let transactions = [];
     let balance = 0;
     let amount = '';
@@ -38,11 +47,11 @@
         if (user) {
             currentUser = user;
             console.log('User signed in:', user);
-            const userDoc = await getDoc(doc(db, 'users', user.uid));
+            const userDoc = await getDoc(doc(db, 'transactions', user.uid));
             if (userDoc.exists()) {
                 const userData = userDoc.data();
                 if (userData.transactions) {
-                    transactions = userData.transactions.map(transaction => ({
+                    transactions = userData.transactions.map((/** @type {{ date: string | number | Date | dayjs.Dayjs | null | undefined; }} */ transaction) => ({
                         ...transaction,
                         date: dayjs(transaction.date)
                     }));
@@ -62,7 +71,7 @@
                 ...transaction,
                 date: transaction.date instanceof dayjs ? transaction.date.toISOString() : transaction.date instanceof Date ? transaction.date.toISOString() : transaction.date
             }));
-            await setDoc(doc(db, 'users', currentUser.uid), { transactions: serializedTransactions });
+            await setDoc(doc(db, 'transactions', currentUser.uid), { transactions: serializedTransactions });
         }
     }
 
@@ -89,6 +98,9 @@
             });
     }
 
+    /**
+	 * @param {number} index
+	 */
     function editTransaction(index) {
         const transaction = transactions[index];
         amount = transaction.amount.toString();
@@ -122,6 +134,9 @@
         }
     }
 
+    /**
+	 * @param {number} index
+	 */
     function removeTransaction(index) {
         transactions = transactions.filter((_, i) => i !== index);
         sortTransactions();
@@ -172,11 +187,18 @@
         syncTransactionsToFirebase();
     }
 
+    /**
+	 * @param {string} amountValue
+	 * @param {string} dateValue
+	 */
     function setShortcut(amountValue, dateValue) {
         amount = amountValue;
         date = dateValue;
     }
 
+    /**
+	 * @param {number | undefined} day
+	 */
     function getUpcomingDate(day) {
         const today = new Date();
         const currentMonth = today.getMonth();
@@ -191,10 +213,16 @@
         return targetDate.toISOString().split('T')[0];
     }
 
+    /**
+	 * @param {string | number | Date | dayjs.Dayjs | null | undefined} date
+	 */
     function formatDate(date) {
         return dayjs(date).format('MMMM D, YYYY'); // Updated to a more human-friendly format
     }
 
+    /**
+	 * @param {string | number | bigint} amount
+	 */
     function formatCurrency(amount) {
         return new Intl.NumberFormat(undefined, {
             style: 'currency',
@@ -218,7 +246,7 @@
     onMount(() => {
         const storedTransactions = localStorage.getItem('transactions');
         if (storedTransactions) {
-            transactions = JSON.parse(storedTransactions).map(transaction => ({
+            transactions = JSON.parse(storedTransactions).map((/** @type {{ date: string | number | Date | dayjs.Dayjs | null | undefined; }} */ transaction) => ({
                 ...transaction,
                 date: dayjs(transaction.date) // Convert date strings back to Date objects
             }));
