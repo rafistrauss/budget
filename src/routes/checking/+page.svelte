@@ -220,6 +220,15 @@
         return dayjs(date).format('MMMM D, YYYY'); // Updated to a more human-friendly format
     }
 
+    // Reactive declarations for each button state - force dependency on transactions
+    $: hasRent = transactions.some(t => t.title === 'Rent');
+    $: hasAutoLoan = transactions.some(t => t.title === 'Auto Loan');
+    $: hasChaseCreditCard = transactions.some(t => t.title === 'Chase Credit Card');
+    $: hasTargetCreditCard = transactions.some(t => t.title === 'Target Credit Card');
+    $: hasAmazonStoreCard = transactions.some(t => t.title === 'Amazon Store Card');
+    $: hasAnsheiTuition = transactions.some(t => t.title === 'Anshei Tuition');
+    $: hasAnsheiRegistration = transactions.some(t => t.title === 'Anshei Registration');
+
     /**
 	 * @param {string | number | bigint} amount
 	 */
@@ -285,6 +294,18 @@
 
     button:hover {
         background-color: #e0e0e0;
+    }
+
+    button.addressed {
+        opacity: 0.4;
+        background-color: #d3d3d3;
+        color: #666;
+        position: relative;
+    }
+
+    button.addressed:hover {
+        opacity: 0.5;
+        background-color: #c0c0c0;
     }
 
     .clear-button {
@@ -390,13 +411,13 @@
 
     <div class="shortcut-buttons">
         <button class="credit-button" on:click={() => { setShortcut('', getUpcomingDate(1)); type = 'credit'; title = 'Transfer'; }}>Transfer</button>
-        <button on:click={() => { setShortcut('3445', getUpcomingDate(1)); type = 'debit'; title = 'Rent'; }}>Rent</button>
-        <button on:click={() => { setShortcut('723.5', getUpcomingDate(8)); type = 'debit'; title = 'Auto Loan'; }}>Auto Loan</button>
-        <button on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Chase Credit Card'; }}>Chase Credit Card</button>
-        <button on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Target Credit Card'; }}>Target Credit Card</button>
-        <button on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Amazon Store Card'; }}>Amazon Store Card</button>
-        <button on:click={() => { setShortcut('1297', getUpcomingDate(1)); type = 'debit'; title = 'Anshei Tuition'; }}>Anshei Tuition</button>
-        <button on:click={() => { setShortcut('50', getUpcomingDate(1)); type = 'debit'; title = 'Anshei Registration'; }}>Anshei Registration</button>
+        <button class:addressed={hasRent} on:click={() => { setShortcut('3445', getUpcomingDate(1)); type = 'debit'; title = 'Rent'; }}>Rent</button>
+        <button class:addressed={hasAutoLoan} on:click={() => { setShortcut('723.5', getUpcomingDate(8)); type = 'debit'; title = 'Auto Loan'; }}>Auto Loan</button>
+        <button class:addressed={hasChaseCreditCard} on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Chase Credit Card'; }}>Chase Credit Card</button>
+        <button class:addressed={hasTargetCreditCard} on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Target Credit Card'; }}>Target Credit Card</button>
+        <button class:addressed={hasAmazonStoreCard} on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Amazon Store Card'; }}>Amazon Store Card</button>
+        <button class:addressed={hasAnsheiTuition} on:click={() => { setShortcut('1297', getUpcomingDate(1)); type = 'debit'; title = 'Anshei Tuition'; }}>Anshei Tuition</button>
+        <button class:addressed={hasAnsheiRegistration} on:click={() => { setShortcut('50', getUpcomingDate(1)); type = 'debit'; title = 'Anshei Registration'; }}>Anshei Registration</button>
     </div>
 
     <h2>Transactions</h2>
