@@ -3,6 +3,9 @@
     import { initializeApp } from 'firebase/app';
     import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
     import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
+    import ChaseLogo from '$lib/ChaseLogo.svelte';
+    import TargetLogo from '$lib/TargetLogo.svelte';
+    import AmazonLogo from '$lib/AmazonLogo.svelte';
 
     const easternTimezone = 'America/New_York'; // Set timezone to Eastern
 
@@ -290,6 +293,14 @@
         padding: 0.5rem 1rem;
         cursor: pointer;
         transition: background-color 0.3s;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    button :global(svg) {
+        vertical-align: middle;
+        flex-shrink: 0;
     }
 
     button:hover {
@@ -332,6 +343,17 @@
 
     ul li {
         margin-bottom: 0.5rem;
+    }
+
+    .transaction-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .transaction-title :global(svg) {
+        vertical-align: middle;
+        flex-shrink: 0;
     }
 
     .suggestion {
@@ -412,11 +434,11 @@
     <div class="shortcut-buttons">
         <button class="credit-button" on:click={() => { setShortcut('', getUpcomingDate(1)); type = 'credit'; title = 'Transfer'; }}>Transfer</button>
         <button class:addressed={hasRent} on:click={() => { setShortcut('3445', getUpcomingDate(1)); type = 'debit'; title = 'Rent'; }}>Rent</button>
-        <button class:addressed={hasAutoLoan} on:click={() => { setShortcut('723.5', getUpcomingDate(8)); type = 'debit'; title = 'Auto Loan'; }}>Auto Loan</button>
-        <button class:addressed={hasChaseCreditCard} on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Chase Credit Card'; }}>Chase Credit Card</button>
-        <button class:addressed={hasTargetCreditCard} on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Target Credit Card'; }}>Target Credit Card</button>
-        <button class:addressed={hasAmazonStoreCard} on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Amazon Store Card'; }}>Amazon Store Card</button>
-        <button class:addressed={hasAnsheiTuition} on:click={() => { setShortcut('1297', getUpcomingDate(1)); type = 'debit'; title = 'Anshei Tuition'; }}>Anshei Tuition</button>
+        <button class:addressed={hasAutoLoan} on:click={() => { setShortcut('723.5', getUpcomingDate(8)); type = 'debit'; title = 'Auto Loan'; }}>🚗 Auto Loan</button>
+        <button class:addressed={hasChaseCreditCard} on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Chase Credit Card'; }}><ChaseLogo /> Chase Credit Card</button>
+        <button class:addressed={hasTargetCreditCard} on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Target Credit Card'; }}><TargetLogo /> Target Credit Card</button>
+        <button class:addressed={hasAmazonStoreCard} on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Amazon Store Card'; }}><AmazonLogo /> Amazon Store Card</button>
+        <button class:addressed={hasAnsheiTuition} on:click={() => { setShortcut('1297', getUpcomingDate(1)); type = 'debit'; title = 'Anshei Tuition'; }}>🎓 Anshei Tuition</button>
         <button class:addressed={hasAnsheiRegistration} on:click={() => { setShortcut('50', getUpcomingDate(1)); type = 'debit'; title = 'Anshei Registration'; }}>Anshei Registration</button>
     </div>
 
@@ -424,7 +446,24 @@
     <ul>
         {#each transactions as { amount, date, type, title, runningTotal }, index}
             <li>
-                {formatDate(date)}: {type} of {formatCurrency(amount)}{title ? ` - ${title}` : ''}
+                {formatDate(date)}: {type} of {formatCurrency(amount)}
+                {#if title}
+                    <span class="transaction-title">
+                        - 
+                        {#if title === 'Chase Credit Card'}
+                            <ChaseLogo />
+                        {:else if title === 'Target Credit Card'}
+                            <TargetLogo />
+                        {:else if title === 'Amazon Store Card'}
+                            <AmazonLogo />
+                        {:else if title === 'Auto Loan'}
+                            🚗
+                        {:else if title === 'Anshei Tuition'}
+                            🎓
+                        {/if}
+                        {title}
+                    </span>
+                {/if}
                 <button on:click={() => editTransaction(index)}>Edit</button>
                 <button on:click={() => removeTransaction(index)}>Remove</button>
                 {#if runningTotal < 0}
