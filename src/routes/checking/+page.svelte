@@ -6,6 +6,7 @@
     import ChaseLogo from '$lib/ChaseLogo.svelte';
     import TargetLogo from '$lib/TargetLogo.svelte';
     import AmazonLogo from '$lib/AmazonLogo.svelte';
+    import PSEGLogo from '$lib/PSEGLogo.svelte';
 
     const easternTimezone = 'America/New_York'; // Set timezone to Eastern
 
@@ -231,6 +232,7 @@
     $: hasAmazonStoreCard = transactions.some(t => t.title === 'Amazon Store Card');
     $: hasAnsheiTuition = transactions.some(t => t.title === 'Anshei Tuition');
     $: hasAnsheiRegistration = transactions.some(t => t.title === 'Anshei Registration');
+    $: hasPSEG = transactions.some(t => t.title === 'PSEG');
 
     /**
 	 * @param {string | number | bigint} amount
@@ -438,6 +440,7 @@
         <button class:addressed={hasChaseCreditCard} on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Chase Credit Card'; }}><ChaseLogo /> Chase Credit Card</button>
         <button class:addressed={hasTargetCreditCard} on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Target Credit Card'; }}><TargetLogo /> Target Credit Card</button>
         <button class:addressed={hasAmazonStoreCard} on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Amazon Store Card'; }}><AmazonLogo /> Amazon Store Card</button>
+        <button class:addressed={hasPSEG} on:click={() => { setShortcut('269', getUpcomingDate(8)); type = 'debit'; title = 'PSEG'; }}><PSEGLogo /> PSEG</button>
         <button class:addressed={hasAnsheiTuition} on:click={() => { setShortcut('1297', getUpcomingDate(1)); type = 'debit'; title = 'Anshei Tuition'; }}>🎓 Anshei Tuition</button>
         <button class:addressed={hasAnsheiRegistration} on:click={() => { setShortcut('50', getUpcomingDate(1)); type = 'debit'; title = 'Anshei Registration'; }}>Anshei Registration</button>
     </div>
@@ -460,6 +463,8 @@
                             🚗
                         {:else if title === 'Anshei Tuition'}
                             🎓
+                        {:else if title === 'PSEG'}
+                            <PSEGLogo />
                         {/if}
                         {title}
                     </span>
