@@ -773,7 +773,8 @@
     </div>
 
     <div class="shortcut-buttons">
-        <button class="credit-button" on:click={() => { setShortcut('', getUpcomingDate(1)); type = 'transfer'; transferTo = 'checking'; account = 'savings'; title = 'Transfer from Savings'; }}>💰 Transfer from Savings</button>
+        <button class="credit-button" on:click={() => { setShortcut('', getUpcomingDate(1)); type = 'credit'; account = 'savings'; title = 'Deposit to Savings'; }}>💰 Deposit to Savings</button>
+        <button class="credit-button" on:click={() => { setShortcut('', getUpcomingDate(1)); type = 'transfer'; transferTo = 'checking'; account = 'savings'; title = 'Transfer from Savings'; }}>🔄 Transfer from Savings</button>
         <button class:addressed={hasRent} on:click={() => { setShortcut('3445', getUpcomingDate(1)); type = 'debit'; title = 'Rent'; }}>Rent</button>
         <button class:addressed={hasAutoLoan} on:click={() => { setShortcut('723.5', getUpcomingDate(8)); type = 'debit'; title = 'Auto Loan'; }}>🚗 Auto Loan</button>
         <button class:addressed={hasChaseCreditCard} on:click={() => { setShortcut('', getUpcomingDate(8)); type = 'debit'; title = 'Chase Credit Card'; }}><ChaseLogo /> Chase Credit Card</button>
