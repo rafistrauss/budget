@@ -586,6 +586,22 @@
 		return dayjs(date).format('MMMM D, YYYY'); // Updated to a more human-friendly format
 	}
 
+	// Helper to get balance as of today
+	function getCurrentBalance(transactions) {
+		const today = dayjs().endOf('day');
+		let runningTotal = 0;
+		transactions.forEach((transaction) => {
+			const txDate = dayjs(transaction.date);
+			if (txDate.isBefore(today) || txDate.isSame(today, 'day')) {
+				runningTotal += transaction.type === 'credit' ? transaction.amount : -transaction.amount;
+			}
+		});
+		return runningTotal;
+	}
+
+	$: currentCheckingBalance = getCurrentBalance(checkingTransactions);
+	$: currentSavingsBalance = getCurrentBalance(savingsTransactions);
+
 	// Reactive declarations for each button state - force dependency on checkingTransactions
 	$: hasRent = checkingTransactions.some((t) => t.title === 'Rent');
 	$: hasAutoLoan = checkingTransactions.some((t) => t.title === 'Auto Loan');
@@ -687,14 +703,22 @@
 		<div class="account-summary checking">
 			<h2>Checking Account</h2>
 			<p>
-				<strong>Balance:</strong>
+				<strong>Current Balance (as of today):</strong>
+				<span class={currentCheckingBalance < 0 ? 'negative' : ''}>{formatCurrency(currentCheckingBalance)}</span>
+			</p>
+			<p>
+				<strong>Final Balance (all transactions):</strong>
 				<span class={checkingBalance < 0 ? 'negative' : ''}>{formatCurrency(checkingBalance)}</span>
 			</p>
 		</div>
 		<div class="account-summary savings">
 			<h2>Savings Account</h2>
 			<p>
-				<strong>Balance:</strong>
+				<strong>Current Balance (as of today):</strong>
+				<span class={currentSavingsBalance < 0 ? 'negative' : ''}>{formatCurrency(currentSavingsBalance)}</span>
+			</p>
+			<p>
+				<strong>Final Balance (all transactions):</strong>
 				<span class={savingsBalance < 0 ? 'negative' : ''}>{formatCurrency(savingsBalance)}</span>
 			</p>
 		</div>
