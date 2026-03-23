@@ -45,8 +45,41 @@
 	let savingsTransactions = [];
 	let checkingBalance = 0;
 	let savingsBalance = 0;
-	let amount = '';
+	let amountCents = 0;
 	let date = '';
+
+	/** @param {KeyboardEvent} e */
+	function handleAmountKeydown(e) {
+		if (e.key >= '0' && e.key <= '9') {
+			e.preventDefault();
+			const next = amountCents * 10 + parseInt(e.key);
+			if (next <= 9999999) amountCents = next;
+		} else if (e.key === 'Backspace') {
+			e.preventDefault();
+			amountCents = Math.floor(amountCents / 10);
+		} else if (e.key === 'Delete') {
+			e.preventDefault();
+			amountCents = 0;
+		}
+		// Mobile fires 'Unidentified' — let it fall through to on:input
+	}
+
+	/** @param {Event} e */
+	function handleAmountInput(e) {
+		// Only runs on mobile (desktop keydown calls preventDefault, so input never fires)
+		const ie = /** @type {InputEvent} */ (e);
+		const target = /** @type {HTMLInputElement} */ (e.target);
+		if (ie.inputType === 'deleteContentBackward' || ie.inputType === 'deleteContentForward') {
+			amountCents = Math.floor(amountCents / 10);
+		} else if (ie.data && ie.data >= '0' && ie.data <= '9') {
+			const next = amountCents * 10 + parseInt(ie.data);
+			if (next <= 9999999) amountCents = next;
+		}
+		// Restore formatted value so the raw digit doesn't linger
+		target.value = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amountCents / 100);
+	}
+
+	$: amountDisplay = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amountCents / 100);;
 	let type = 'credit';
 	let title = '';
 	let account = 'checking';
@@ -172,7 +205,7 @@
 	function editTransaction(index, accountType) {
 		const transactions = accountType === 'checking' ? checkingTransactions : savingsTransactions;
 		const transaction = transactions[index];
-		amount = transaction.amount.toString();
+		amountCents = Math.round(transaction.amount * 100);
 		const transactionDate =
 			transaction.date instanceof dayjs ? transaction.date.toDate() : new Date(transaction.date);
 		date = dayjs(transactionDate).format('YYYY-MM-DD');
@@ -184,7 +217,7 @@
 	}
 
 	function saveTransaction() {
-		if (amount && date && title) {
+		if (amountCents > 0 && date && title) {
 			if (editingIndex !== null) {
 				// When editing, if changing to a transfer, we need to handle it specially
 				if (type === 'transfer') {
@@ -198,14 +231,14 @@
 					const newCheckingTransaction =
 						account === 'checking' && transferTo === 'savings'
 							? {
-									amount: parseFloat(amount),
+									amount: amountCents / 100,
 									date: dayjs(date),
 									type: 'debit',
 									title: 'Transfer to Savings',
 									transferId
 							  }
 							: {
-									amount: parseFloat(amount),
+									amount: amountCents / 100,
 									date: dayjs(date),
 									type: 'credit',
 									title: 'Transfer from Savings',
@@ -215,14 +248,14 @@
 					const newSavingsTransaction =
 						account === 'savings' && transferTo === 'checking'
 							? {
-									amount: parseFloat(amount),
+									amount: amountCents / 100,
 									date: dayjs(date),
 									type: 'debit',
 									title: 'Transfer to Checking',
 									transferId
 							  }
 							: {
-									amount: parseFloat(amount),
+									amount: amountCents / 100,
 									date: dayjs(date),
 									type: 'credit',
 									title: 'Transfer from Checking',
@@ -247,7 +280,7 @@
 				} else {
 					// Regular edit - build transaction without undefined fields
 					const transaction = {
-						amount: parseFloat(amount),
+						amount: amountCents / 100,
 						date: dayjs(date),
 						type,
 						title
@@ -274,7 +307,7 @@
 						checkingTransactions = [
 							...checkingTransactions,
 							{
-								amount: parseFloat(amount),
+								amount: amountCents / 100,
 								date: dayjs(date),
 								type: 'debit',
 								title: 'Transfer to Savings',
@@ -284,7 +317,7 @@
 						savingsTransactions = [
 							...savingsTransactions,
 							{
-								amount: parseFloat(amount),
+								amount: amountCents / 100,
 								date: dayjs(date),
 								type: 'credit',
 								title: 'Transfer from Checking',
@@ -295,7 +328,7 @@
 						savingsTransactions = [
 							...savingsTransactions,
 							{
-								amount: parseFloat(amount),
+								amount: amountCents / 100,
 								date: dayjs(date),
 								type: 'debit',
 								title: 'Transfer to Checking',
@@ -305,7 +338,7 @@
 						checkingTransactions = [
 							...checkingTransactions,
 							{
-								amount: parseFloat(amount),
+								amount: amountCents / 100,
 								date: dayjs(date),
 								type: 'credit',
 								title: 'Transfer from Savings',
@@ -316,7 +349,7 @@
 				} else {
 					// Regular transaction - no undefined fields
 					const transaction = {
-						amount: parseFloat(amount),
+						amount: amountCents / 100,
 						date: dayjs(date),
 						type,
 						title
@@ -332,7 +365,7 @@
 			sortTransactions();
 			updateBalance();
 			syncTransactionsToFirebase();
-			amount = '';
+			amountCents = 0;
 			date = '';
 			title = '';
 			transferTo = '';
@@ -371,7 +404,7 @@
 	}
 
 	function addTransaction() {
-		if (amount && date && title) {
+		if (amountCents > 0 && date && title) {
 			// Handle transfers between accounts
 			if (type === 'transfer') {
 				// Create linked transfer transactions
@@ -380,7 +413,7 @@
 					checkingTransactions = [
 						...checkingTransactions,
 						{
-							amount: parseFloat(amount),
+							amount: amountCents / 100,
 							date: dayjs(date),
 							type: 'debit',
 							title: 'Transfer to Savings',
@@ -390,7 +423,7 @@
 					savingsTransactions = [
 						...savingsTransactions,
 						{
-							amount: parseFloat(amount),
+							amount: amountCents / 100,
 							date: dayjs(date),
 							type: 'credit',
 							title: 'Transfer from Checking',
@@ -401,7 +434,7 @@
 					savingsTransactions = [
 						...savingsTransactions,
 						{
-							amount: parseFloat(amount),
+							amount: amountCents / 100,
 							date: dayjs(date),
 							type: 'debit',
 							title: 'Transfer to Checking',
@@ -411,7 +444,7 @@
 					checkingTransactions = [
 						...checkingTransactions,
 						{
-							amount: parseFloat(amount),
+							amount: amountCents / 100,
 							date: dayjs(date),
 							type: 'credit',
 							title: 'Transfer from Savings',
@@ -422,7 +455,7 @@
 			} else {
 				// Regular transaction - no undefined fields
 				const transaction = {
-					amount: parseFloat(amount),
+					amount: amountCents / 100,
 					date: dayjs(date),
 					type,
 					title
@@ -437,7 +470,7 @@
 			sortTransactions();
 			updateBalance();
 			syncTransactionsToFirebase();
-			amount = '';
+			amountCents = 0;
 			date = '';
 			title = '';
 			transferTo = '';
@@ -557,7 +590,7 @@
 	 * @param {string} dateValue
 	 */
 	function setShortcut(amountValue, dateValue) {
-		amount = amountValue;
+		amountCents = amountValue ? Math.round(parseFloat(amountValue) * 100) : 0;
 		date = dateValue;
 		account = 'checking';
 	}
@@ -763,7 +796,15 @@
 	<form on:submit|preventDefault={editingIndex !== null ? saveTransaction : addTransaction}>
 		<label>
 			Amount:
-			<input type="number" bind:value={amount} step="0.01" required />
+			<input
+				type="text"
+				inputmode="numeric"
+				class="amount-display"
+				value={amountDisplay}
+				on:keydown={handleAmountKeydown}
+				on:input={handleAmountInput}
+				placeholder="$0.00"
+			/>
 		</label>
 		<label>
 			Date:
@@ -1093,6 +1134,29 @@
 
 	form {
 		margin-bottom: 1rem;
+	}
+
+	.amount-display {
+		font-size: 1.6rem;
+		font-weight: 700;
+		font-family: 'Courier New', monospace;
+		color: #1a3a5c;
+		background: #f0f6ff;
+		border: 2px solid #b0c8e8;
+		border-radius: 8px;
+		padding: 0.4rem 1rem;
+		text-align: right;
+		min-width: 180px;
+		caret-color: transparent;
+		user-select: none;
+		outline: none;
+		transition: border-color 0.2s, box-shadow 0.2s;
+	}
+
+	.amount-display:focus {
+		border-color: #4a90e2;
+		box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
+		background: #fff;
 	}
 
 	ul {
