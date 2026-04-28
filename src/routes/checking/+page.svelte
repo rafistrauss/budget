@@ -79,6 +79,28 @@
 		target.value = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amountCents / 100);
 	}
 
+	/** @param {string} text */
+	function parseAmountTextToCents(text) {
+		const normalized = text.replace(/[^\d.]/g, '');
+		if (!normalized) return 0;
+		const parsed = Number.parseFloat(normalized);
+		if (!Number.isFinite(parsed) || parsed < 0) return 0;
+		return Math.min(Math.round(parsed * 100), 9999999);
+	}
+
+	/** @param {ClipboardEvent} e */
+	function handleAmountPaste(e) {
+		e.preventDefault();
+		const pastedText = e.clipboardData?.getData('text') ?? '';
+		amountCents = parseAmountTextToCents(pastedText);
+		const target = /** @type {HTMLInputElement | null} */ (e.target);
+		if (target) {
+			target.value = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
+				amountCents / 100
+			);
+		}
+	}
+
 	$: amountDisplay = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amountCents / 100);;
 	let type = 'credit';
 	let title = '';
@@ -803,6 +825,7 @@
 				value={amountDisplay}
 				on:keydown={handleAmountKeydown}
 				on:input={handleAmountInput}
+				on:paste={handleAmountPaste}
 				placeholder="$0.00"
 			/>
 		</label>
