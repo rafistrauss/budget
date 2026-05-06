@@ -1,0 +1,86 @@
+<script>
+	import { base } from '$app/paths';
+	import { page } from '$app/stores';
+
+	/** @param {string} path */
+	function isActive(path) {
+		// Normalise trailing slashes
+		const current = ($page.url.pathname).replace(/\/$/, '') || '/';
+		const target = (base + path).replace(/\/$/, '') || '/';
+		return current === target;
+	}
+</script>
+
+<aside class="sidebar">
+	<div class="sidebar-header">
+		<span class="logo">💰</span>
+		<span class="logo-text">Budget</span>
+	</div>
+	<nav class="sidebar-nav">
+		<a class="nav-item" class:active={isActive('/')} href="{base}/">
+			<span class="nav-icon">📊</span> Planner
+		</a>
+		<a class="nav-item" class:active={isActive('/take-home-pay')} href="{base}/take-home-pay">
+			<span class="nav-icon">🧮</span> Take-Home Pay
+		</a>
+		<a class="nav-item" class:active={isActive('/checking')} href="{base}/checking">
+			<span class="nav-icon">🏦</span> Checking
+		</a>
+	</nav>
+</aside>
+
+<style>
+	.sidebar {
+		width: 200px;
+		flex-shrink: 0;
+		background: #1e2130;
+		color: #c8cdd8;
+		display: flex;
+		flex-direction: column;
+		padding: 1.25rem 0;
+		position: sticky;
+		top: 0;
+		height: 100vh;
+		overflow-y: auto;
+	}
+
+	.sidebar-header {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0 1.25rem 1.5rem;
+		font-weight: 700;
+		font-size: 1.1rem;
+		color: #fff;
+		border-bottom: 1px solid #2e3348;
+	}
+
+	.logo { font-size: 1.3rem; }
+
+	.sidebar-nav {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+		padding: 1rem 0.75rem 0;
+	}
+
+	.nav-item {
+		display: flex;
+		align-items: center;
+		gap: 0.55rem;
+		padding: 0.6rem 0.75rem;
+		border-radius: 8px;
+		color: #9ba3b5;
+		text-decoration: none;
+		font-size: 0.9rem;
+		transition: background 0.15s, color 0.15s;
+	}
+
+	.nav-item:hover { background: #2b2f42; color: #fff; }
+	.nav-item.active { background: #2e3a5c; color: #fff; font-weight: 600; }
+	.nav-icon { font-size: 1rem; }
+
+	@media (max-width: 900px) {
+		.sidebar { display: none; }
+	}
+</style>

@@ -8,6 +8,7 @@
 
 	import { formatAsCurrency, safelyGetLocalStorage, safelySetLocalStorage } from '$lib';
 	import TaxesByState from '$lib/TaxesByState.svelte';
+	import Nav from '$lib/Nav.svelte';
 
 	const firebaseConfig = {
 		apiKey: 'AIzaSyC_wqKaOmHf0Nq31JOZtCt3pSQN_m1FOLk',
@@ -135,12 +136,9 @@
 	});
 </script>
 
-<main>
-	<nav class="topLinks">
-		<a href="{base}/">Monthly Budget Planner</a>
-		<a href="{base}/checking">Checking</a>
-		<a href="{base}/savings">Savings</a>
-	</nav>
+<div class="app">
+	<Nav />
+	<main>
 	<h1>Take-Home Pay Calculator</h1>
 
 	<section>
@@ -379,21 +377,22 @@
 			{/each}
 		</section>
 	</section>
-</main>
+	</main>
+</div>
 
 <style>
-	main {
-		max-width: 800px;
-		margin: 0 auto;
+	.app {
+		display: flex;
+		min-height: 100vh;
 		font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu,
 			Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
 	}
 
-	.topLinks {
-		display: flex;
-		gap: 1rem;
-		margin-bottom: 1rem;
-		flex-wrap: wrap;
+	main {
+		flex: 1;
+		max-width: 800px;
+		padding: 1.5rem 2rem;
+		min-width: 0;
 	}
 
 	.interval {

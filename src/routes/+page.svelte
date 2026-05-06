@@ -3,8 +3,9 @@
 	import { onMount } from 'svelte';
 
 	import { formatAsCurrency, safelyGetLocalStorage, safelySetLocalStorage } from '$lib';
+	import Nav from '$lib/Nav.svelte';
 
-	const STORAGE_KEY = 'monthly-budget-v2';
+	const STORAGE_KEY = 'monthly-budget-v5';
 	const CATEGORY_COLORS = [
 		'#4f86c6', '#e07b54', '#5bb56a', '#c95f8a', '#8b6bbf',
 		'#d4a843', '#4db8b0', '#e05454', '#7a9e4f', '#6b8fbf'
@@ -33,9 +34,48 @@
 		{ id: 'transport', name: 'Transport', baseAmount: 400, changes: [] }
 	];
 
+	/**
+	 * @typedef {{ effectiveYear: number; effectiveMonth: number; amount: number }} IncomeChange
+	 */
+
+	/**
+	 * @typedef {{ id: string; name: string; amount: number; frequency: 'monthly' | 'biweekly'; startDate?: string; changes: IncomeChange[] }} IncomeSource
+	 */
+
+	/**
+	 * @typedef {{ id: string; name: string; amount: number; year: number; month: number }} Bonus
+	 */
+
 	let selectedYear = now.getFullYear();
 	let selectedMonth = now.getMonth();
-	let monthlyIncome = 0;
+
+	/** @type {IncomeSource[]} */
+	let incomeSources = [
+		{ id: 'income-1', name: 'My Income', amount: 0, frequency: 'biweekly', startDate: now.toISOString().slice(0, 10), changes: [] }
+	];
+
+	/** @type {Bonus[]} */
+	let bonuses = [];
+
+	let addingIncome = false;
+	let newIncomeName = '';
+	let newIncomeAmount = 0;
+	/** @type {'monthly' | 'biweekly'} */
+	let newIncomeFrequency = 'biweekly';
+	let newIncomeStartDate = now.toISOString().slice(0, 10);
+
+	let addingBonus = false;
+	let newBonusName = '';
+	let newBonusAmount = 0;
+	let newBonusYear = now.getFullYear();
+	let newBonusMonth = now.getMonth();
+
+	// Income scheduled change panel state
+	/** @type {string} */
+	let expandedIncomeSourceId = '';
+	let incomeChangeEffectiveYear = selectedYear;
+	let incomeChangeEffectiveMonth = selectedMonth;
+	let incomeChangeAmount = 0;
 
 	let hasLoadedFromStorage = false;
 
@@ -66,8 +106,43 @@
 				if (Array.isArray(parsed?.categories)) {
 					categories = normalizeCategories(parsed.categories);
 				}
-				if (typeof parsed?.monthlyIncome === 'number') {
-					monthlyIncome = parsed.monthlyIncome;
+				if (Array.isArray(parsed?.incomeSources) && parsed.incomeSources.length > 0) {
+					incomeSources = parsed.incomeSources
+						.filter((/** @type {unknown} */ s) => s && typeof s === 'object')
+						.map((/** @type {{ id?: unknown; name?: unknown; amount?: unknown; frequency?: unknown; startDate?: unknown; changes?: unknown[] }} */ s, /** @type {number} */ i) => {
+							const changes = Array.isArray(s.changes)
+								? (/** @type {unknown[]} */ (s.changes))
+										.filter((c) => c && typeof c === 'object')
+										.map((c) => {
+											const p = /** @type {{ effectiveYear?: unknown; effectiveMonth?: unknown; amount?: unknown }} */ (c);
+											return {
+												effectiveYear: Number(p.effectiveYear) || now.getFullYear(),
+												effectiveMonth: Number(p.effectiveMonth) || 0,
+												amount: Number(p.amount) || 0
+											};
+										})
+										.sort((a, b) => compareYearMonth(a.effectiveYear, a.effectiveMonth, b.effectiveYear, b.effectiveMonth))
+								: [];
+							return {
+								id: typeof s.id === 'string' && s.id ? s.id : `income-${i}`,
+								name: typeof s.name === 'string' && s.name ? s.name : `Income ${i + 1}`,
+								amount: Number(s.amount) || 0,
+								frequency: s.frequency === 'monthly' ? 'monthly' : /** @type {'biweekly'} */ ('biweekly'),
+								changes,
+								...(typeof s.startDate === 'string' && s.startDate ? { startDate: s.startDate } : {})
+							};
+						});
+				}
+				if (Array.isArray(parsed?.bonuses)) {
+					bonuses = parsed.bonuses
+						.filter((/** @type {unknown} */ b) => b && typeof b === 'object')
+						.map((/** @type {{ id?: unknown; name?: unknown; amount?: unknown; year?: unknown; month?: unknown }} */ b, /** @type {number} */ i) => ({
+							id: typeof b.id === 'string' && b.id ? b.id : `bonus-${i}`,
+							name: typeof b.name === 'string' && b.name ? b.name : `Bonus ${i + 1}`,
+							amount: Number(b.amount) || 0,
+							year: Number(b.year) || now.getFullYear(),
+							month: Number(b.month) || 0
+						}));
 				}
 			} catch (error) {
 				console.error('Could not parse saved budget', error);
@@ -82,8 +157,63 @@
 	});
 
 	$: if (hasLoadedFromStorage) {
-		safelySetLocalStorage(STORAGE_KEY, JSON.stringify({ categories, monthlyIncome }));
+		safelySetLocalStorage(STORAGE_KEY, JSON.stringify({ categories, incomeSources, bonuses }));
 	}
+
+	/**
+	 * Count how many biweekly paydays fall in the given year/month,
+	 * given any reference payday as start date.
+	 * @param {string} startDate ISO 'YYYY-MM-DD' of any known payday
+	 * @param {number} year
+	 * @param {number} month 0-indexed
+	 */
+	function biweeklyPaychecksInMonth(startDate, year, month) {
+		const refMs = new Date(startDate + 'T12:00:00').getTime();
+		const firstMs = new Date(year, month, 1).getTime();
+		const lastMs = new Date(year, month + 1, 0, 23, 59, 59).getTime();
+		const interval = 14 * 24 * 60 * 60 * 1000;
+		const nStart = Math.ceil((firstMs - refMs) / interval);
+		let count = 0;
+		for (let n = nStart; refMs + n * interval <= lastMs; n++) count++;
+		return count;
+	}
+
+	/**
+	 * @param {IncomeSource} src
+	 * @param {number} year
+	 * @param {number} month 0-indexed
+	 */
+	function getAmountForIncomeSource(src, year, month) {
+		let amount = Number(src.amount) || 0;
+		for (const change of (src.changes ?? [])) {
+			if (compareYearMonth(change.effectiveYear, change.effectiveMonth, year, month) <= 0) {
+				amount = Number(change.amount) || 0;
+			}
+		}
+		return amount;
+	}
+
+	/**
+	 * @param {IncomeSource} src
+	 * @param {number} year
+	 * @param {number} month 0-indexed
+	 */
+	function incomeForMonth(src, year, month) {
+		const amount = getAmountForIncomeSource(src, year, month);
+		if (src.frequency === 'biweekly') {
+			const count = src.startDate
+				? biweeklyPaychecksInMonth(src.startDate, year, month)
+				: 2;
+			return count * amount;
+		}
+		return amount;
+	}
+
+	$: totalMonthlyIncome =
+		incomeSources.reduce((acc, src) => acc + incomeForMonth(src, selectedYear, selectedMonth), 0) +
+		bonuses
+			.filter((b) => b.year === selectedYear && b.month === selectedMonth)
+			.reduce((acc, b) => acc + b.amount, 0);
 
 	$: monthlyRows = categories.map((category, i) => ({
 		category,
@@ -92,20 +222,188 @@
 	}));
 
 	$: totalMonthlyBudget = monthlyRows.reduce((acc, row) => acc + row.activeAmount, 0);
-	$: monthlySavings = monthlyIncome - totalMonthlyBudget;
+	$: monthlySavings = totalMonthlyIncome - totalMonthlyBudget;
 
 	// Annual savings: sum savings for each month of selectedYear
 	$: annualSavings = Array.from({ length: 12 }, (_, m) => {
+		const income =
+			incomeSources.reduce((acc, src) => acc + incomeForMonth(src, selectedYear, m), 0) +
+			bonuses
+				.filter((b) => b.year === selectedYear && b.month === m)
+				.reduce((acc, b) => acc + b.amount, 0);
 		const spent = categories.reduce(
 			(acc, cat) => acc + getAmountForMonth(cat, selectedYear, m),
 			0
 		);
-		return monthlyIncome - spent;
+		return income - spent;
 	}).reduce((a, b) => a + b, 0);
 
 	/** @param {number} val */
 	function savingsClass(val) {
 		return val >= 0 ? 'positive' : 'negative';
+	}
+
+	function exportData() {
+		const data = JSON.stringify({ categories, incomeSources, bonuses }, null, 2);
+		const blob = new Blob([data], { type: 'application/json' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `budget-planner-${new Date().toISOString().slice(0, 10)}.json`;
+		a.click();
+		URL.revokeObjectURL(url);
+	}
+
+	/** @param {Event} e */
+	function handleImport(e) {
+		const input = /** @type {HTMLInputElement} */ (e.target);
+		const file = input.files?.[0];
+		if (!file) return;
+		const reader = new FileReader();
+		reader.onload = (ev) => {
+			try {
+				const parsed = JSON.parse(/** @type {string} */ (ev.target?.result));
+				if (Array.isArray(parsed?.categories)) {
+					categories = normalizeCategories(parsed.categories);
+				}
+				if (Array.isArray(parsed?.incomeSources) && parsed.incomeSources.length > 0) {
+					incomeSources = parsed.incomeSources
+						.filter((/** @type {unknown} */ s) => s && typeof s === 'object')
+						.map((/** @type {{ id?: unknown; name?: unknown; amount?: unknown; frequency?: unknown; startDate?: unknown; changes?: unknown[] }} */ s, /** @type {number} */ i) => {
+							const changes = Array.isArray(s.changes)
+								? (/** @type {unknown[]} */ (s.changes))
+										.filter((c) => c && typeof c === 'object')
+										.map((c) => {
+											const p = /** @type {{ effectiveYear?: unknown; effectiveMonth?: unknown; amount?: unknown }} */ (c);
+											return {
+												effectiveYear: Number(p.effectiveYear) || now.getFullYear(),
+												effectiveMonth: Number(p.effectiveMonth) || 0,
+												amount: Number(p.amount) || 0
+											};
+										})
+										.sort((a, b) => compareYearMonth(a.effectiveYear, a.effectiveMonth, b.effectiveYear, b.effectiveMonth))
+								: [];
+							return {
+								id: typeof s.id === 'string' && s.id ? s.id : `income-${i}`,
+								name: typeof s.name === 'string' && s.name ? s.name : `Income ${i + 1}`,
+								amount: Number(s.amount) || 0,
+								frequency: s.frequency === 'monthly' ? 'monthly' : /** @type {'biweekly'} */ ('biweekly'),
+								changes,
+								...(typeof s.startDate === 'string' && s.startDate ? { startDate: s.startDate } : {})
+							};
+						});
+				}
+				if (Array.isArray(parsed?.bonuses)) {
+					bonuses = parsed.bonuses
+						.filter((/** @type {unknown} */ b) => b && typeof b === 'object')
+						.map((/** @type {{ id?: unknown; name?: unknown; amount?: unknown; year?: unknown; month?: unknown }} */ b, /** @type {number} */ i) => ({
+							id: typeof b.id === 'string' && b.id ? b.id : `bonus-${i}`,
+							name: typeof b.name === 'string' && b.name ? b.name : `Bonus ${i + 1}`,
+							amount: Number(b.amount) || 0,
+							year: Number(b.year) || now.getFullYear(),
+							month: Number(b.month) || 0
+						}));
+				}
+			} catch (err) {
+				alert('Failed to import: invalid JSON file.');
+				console.error(err);
+			} finally {
+				input.value = '';
+			}
+		};
+		reader.readAsText(file);
+	}
+
+	function addIncomeSource() {
+		const name = newIncomeName.trim();
+		if (!name) return;
+		incomeSources = [
+			...incomeSources,
+			{
+				id: `income-${Date.now()}`,
+				name,
+				amount: Number(newIncomeAmount) || 0,
+				frequency: newIncomeFrequency,
+				changes: [],
+				...(newIncomeFrequency === 'biweekly' ? { startDate: newIncomeStartDate } : {})
+			}
+		];
+		newIncomeName = '';
+		newIncomeAmount = 0;
+		newIncomeFrequency = 'biweekly';
+		newIncomeStartDate = now.toISOString().slice(0, 10);
+		addingIncome = false;
+	}
+
+	/** @param {string} id */
+	function removeIncomeSource(id) {
+		incomeSources = incomeSources.filter((s) => s.id !== id);
+		if (expandedIncomeSourceId === id) expandedIncomeSourceId = '';
+	}
+
+	/** @param {string} id */
+	function toggleIncomeChangePanel(id) {
+		if (expandedIncomeSourceId === id) {
+			expandedIncomeSourceId = '';
+		} else {
+			expandedIncomeSourceId = id;
+			incomeChangeEffectiveYear = selectedYear;
+			incomeChangeEffectiveMonth = selectedMonth;
+			const src = incomeSources.find((s) => s.id === id) ?? incomeSources[0];
+			incomeChangeAmount = getAmountForIncomeSource(src, selectedYear, selectedMonth);
+		}
+	}
+
+	function addIncomeScheduledChange() {
+		if (!expandedIncomeSourceId) return;
+		incomeSources = incomeSources.map((src) => {
+			if (src.id !== expandedIncomeSourceId) return src;
+			const nextChanges = [
+				...(src.changes ?? []),
+				{
+					effectiveYear: Number(incomeChangeEffectiveYear),
+					effectiveMonth: Number(incomeChangeEffectiveMonth),
+					amount: Number(incomeChangeAmount) || 0
+				}
+			].sort((a, b) => compareYearMonth(a.effectiveYear, a.effectiveMonth, b.effectiveYear, b.effectiveMonth));
+			return { ...src, changes: nextChanges };
+		});
+	}
+
+	/**
+	 * @param {string} sourceId
+	 * @param {number} index
+	 */
+	function removeIncomeScheduledChange(sourceId, index) {
+		incomeSources = incomeSources.map((src) => {
+			if (src.id !== sourceId) return src;
+			return { ...src, changes: (src.changes ?? []).filter((_, i) => i !== index) };
+		});
+	}
+
+	function addBonus() {
+		const name = newBonusName.trim();
+		if (!name || !newBonusAmount) return;
+		bonuses = [
+			...bonuses,
+			{
+				id: `bonus-${Date.now()}`,
+				name,
+				amount: Number(newBonusAmount) || 0,
+				year: Number(newBonusYear),
+				month: Number(newBonusMonth)
+			}
+		];
+		newBonusName = '';
+		newBonusAmount = 0;
+		newBonusYear = now.getFullYear();
+		newBonusMonth = now.getMonth();
+		addingBonus = false;
+	}
+
+	/** @param {string} id */
+	function removeBonus(id) {
+		bonuses = bonuses.filter((b) => b.id !== id);
 	}
 
 	function addCategory() {
@@ -252,27 +550,7 @@
 </script>
 
 <div class="app">
-	<!-- ── Sidebar ── -->
-	<aside class="sidebar">
-		<div class="sidebar-header">
-			<span class="logo">💰</span>
-			<span class="logo-text">Budget</span>
-		</div>
-		<nav class="sidebar-nav">
-			<a class="nav-item active" href="{base}/">
-				<span class="nav-icon">📊</span> Planner
-			</a>
-			<a class="nav-item" href="{base}/take-home-pay">
-				<span class="nav-icon">🧮</span> Take-Home Pay
-			</a>
-			<a class="nav-item" href="{base}/checking">
-				<span class="nav-icon">🏦</span> Checking
-			</a>
-			<a class="nav-item" href="{base}/savings">
-				<span class="nav-icon">🐷</span> Savings
-			</a>
-		</nav>
-	</aside>
+	<Nav />
 
 	<!-- ── Main ── -->
 	<main class="main">
@@ -297,21 +575,168 @@
 					else { selectedMonth += 1; }
 				}}>›</button>
 			</div>
+			<div class="period-actions">
+				<button class="btn-secondary" on:click={exportData} title="Export planner data as JSON">⬇ Export</button>
+				<label class="btn-secondary" title="Import planner data from JSON">
+					⬆ Import
+					<input type="file" accept=".json,application/json" style="display:none" on:change={handleImport} />
+				</label>
+			</div>
 		</header>
 
 		<!-- Summary cards -->
 		<section class="summary-row">
 			<div class="summary-card income-card">
-				<div class="summary-label">Monthly Income</div>
-				<input
-					class="income-input"
-					type="number"
-					bind:value={monthlyIncome}
-					placeholder="0"
-					aria-label="Monthly income"
-				/>
+				<div class="summary-label-row">
+					<span class="summary-label">Monthly Income</span>
+					<button class="btn-icon-tiny" title="Add income source" on:click={() => (addingIncome = !addingIncome)}>
+						{addingIncome ? '✕' : '+'}
+					</button>
+				</div>
+				<div class="summary-amount">{formatAsCurrency(totalMonthlyIncome)}</div>
+				<div class="income-sources-list">
+					{#each incomeSources as src (src.id)}
+						{@const isIncomeExpanded = expandedIncomeSourceId === src.id}
+						{@const activeAmount = getAmountForIncomeSource(src, selectedYear, selectedMonth)}
+						<div class="income-source-item" class:expanded={isIncomeExpanded}>
+							<div class="income-source-row">
+								<input
+									class="income-name-input"
+									type="text"
+									bind:value={src.name}
+									on:change={() => (incomeSources = [...incomeSources])}
+								/>
+								<input
+									class="income-amt-input"
+									type="number"
+									bind:value={src.amount}
+									on:change={() => (incomeSources = [...incomeSources])}
+								/>
+								<select
+									class="freq-select"
+									bind:value={src.frequency}
+									on:change={() => (incomeSources = [...incomeSources])}
+								>
+									<option value="biweekly">/ 2 wks</option>
+									<option value="monthly">/ mo</option>
+								</select>
+								{#if src.frequency === 'biweekly'}
+									<input
+										class="start-date-input"
+										type="date"
+										bind:value={src.startDate}
+										on:change={() => (incomeSources = [...incomeSources])}
+										title="A known payday date (sets the biweekly cycle)"
+									/>
+									<span
+										class="paycheck-count"
+										title="Paychecks in {monthNames[selectedMonth]} {selectedYear}"
+									>×{src.startDate ? biweeklyPaychecksInMonth(src.startDate, selectedYear, selectedMonth) : '~2'}</span>
+								{/if}
+								{#if activeAmount !== src.amount}
+									<span class="income-override" title="Scheduled change active">→ {formatAsCurrency(activeAmount)}</span>
+								{/if}
+								<button
+									class="btn-icon-tiny"
+									class:active={isIncomeExpanded}
+									title="{isIncomeExpanded ? 'Hide' : 'Schedule'} income changes"
+									on:click={() => toggleIncomeChangePanel(src.id)}
+								>{(src.changes ?? []).length > 0 ? `⏱ ${src.changes.length}` : '⏱'}</button>
+								{#if incomeSources.length > 1}
+									<button class="btn-icon-tiny danger" title="Remove" on:click={() => removeIncomeSource(src.id)}>✕</button>
+								{/if}
+							</div>
+
+							{#if isIncomeExpanded}
+								<div class="income-changes-panel">
+									<div class="changes-header">Scheduled changes for {src.name}</div>
+									{#if (src.changes ?? []).length > 0}
+										<table class="changes-table">
+											<thead><tr><th>From</th><th>Amount per paycheck</th><th></th></tr></thead>
+											<tbody>
+												{#each src.changes as change, idx}
+													<tr>
+														<td>{monthNames[change.effectiveMonth]} {change.effectiveYear}</td>
+														<td>{formatAsCurrency(change.amount)}</td>
+														<td><button class="btn-icon danger small" on:click={() => removeIncomeScheduledChange(src.id, idx)}>✕</button></td>
+													</tr>
+												{/each}
+											</tbody>
+										</table>
+									{/if}
+									<div class="change-form">
+										<label class="field">
+											<span>From</span>
+											<div class="field-row">
+												<select bind:value={incomeChangeEffectiveMonth}>
+													{#each monthNames as mname, i}
+														<option value={i}>{mname}</option>
+													{/each}
+												</select>
+												<input type="number" bind:value={incomeChangeEffectiveYear} min="2000" max="2100" class="year-input" />
+											</div>
+										</label>
+										<label class="field">
+											<span>New amount per {src.frequency === 'biweekly' ? 'paycheck' : 'month'} ($)</span>
+											<input type="number" bind:value={incomeChangeAmount} placeholder="Amount" />
+										</label>
+										<button class="btn-primary" on:click={addIncomeScheduledChange}>Add change</button>
+									</div>
+								</div>
+							{/if}
+						</div>
+					{/each}
+				</div>
+				{#if addingIncome}
+					<div class="income-add-row">
+						<input type="text" bind:value={newIncomeName} placeholder="Name" class="income-name-input" on:keydown={(e) => e.key === 'Enter' && addIncomeSource()} />
+						<input type="number" bind:value={newIncomeAmount} placeholder="Amount" class="income-amt-input" on:keydown={(e) => e.key === 'Enter' && addIncomeSource()} />
+						<select class="freq-select" bind:value={newIncomeFrequency}>
+							<option value="biweekly">/ 2 wks</option>
+							<option value="monthly">/ mo</option>
+						</select>
+						{#if newIncomeFrequency === 'biweekly'}
+							<input type="date" class="start-date-input" bind:value={newIncomeStartDate} title="A known payday date" />
+						{/if}
+						<button class="btn-icon-tiny confirm" on:click={addIncomeSource}>✓</button>
+					</div>
+				{/if}
+
+				<!-- Bonuses -->
+				<div class="income-section-header">
+					<span class="summary-sublabel">Bonuses</span>
+					<button class="btn-icon-tiny" title="Add bonus" on:click={() => (addingBonus = !addingBonus)}>
+						{addingBonus ? '✕' : '+'}
+					</button>
+				</div>
+				{#each bonuses as bonus (bonus.id)}
+					<div class="bonus-row">
+						<input class="income-name-input" type="text" bind:value={bonus.name} on:change={() => (bonuses = [...bonuses])} />
+						<input class="income-amt-input" type="number" bind:value={bonus.amount} on:change={() => (bonuses = [...bonuses])} />
+						<select class="freq-select" bind:value={bonus.month} on:change={() => (bonuses = [...bonuses])}>
+							{#each monthNames as mname, i}
+								<option value={i}>{mname.slice(0, 3)}</option>
+							{/each}
+						</select>
+						<input class="bonus-year-input" type="number" bind:value={bonus.year} min="2000" max="2100" on:change={() => (bonuses = [...bonuses])} />
+						<button class="btn-icon-tiny danger" title="Remove bonus" on:click={() => removeBonus(bonus.id)}>✕</button>
+					</div>
+				{/each}
+				{#if addingBonus}
+					<div class="bonus-row">
+						<input type="text" bind:value={newBonusName} placeholder="Name" class="income-name-input" on:keydown={(e) => e.key === 'Enter' && addBonus()} />
+						<input type="number" bind:value={newBonusAmount} placeholder="Amount" class="income-amt-input" on:keydown={(e) => e.key === 'Enter' && addBonus()} />
+						<select class="freq-select" bind:value={newBonusMonth}>
+							{#each monthNames as mname, i}
+								<option value={i}>{mname.slice(0, 3)}</option>
+							{/each}
+						</select>
+						<input class="bonus-year-input" type="number" bind:value={newBonusYear} min="2000" max="2100" />
+						<button class="btn-icon-tiny confirm" on:click={addBonus}>✓</button>
+					</div>
+				{/if}
 				<div class="summary-sub">
-					<a href="{base}/take-home-pay" class="calc-link">Calculate →</a>
+					<a href="{base}/take-home-pay" class="calc-link">Calculate take-home →</a>
 				</div>
 			</div>
 
@@ -325,8 +750,8 @@
 				<div class="summary-label">Monthly Savings</div>
 				<div class="summary-amount">{formatAsCurrency(monthlySavings)}</div>
 				<div class="summary-sub">
-					{#if monthlyIncome > 0}
-						{Math.round((monthlySavings / monthlyIncome) * 100)}% of income
+					{#if totalMonthlyIncome > 0}
+						{Math.round((monthlySavings / totalMonthlyIncome) * 100)}% of income
 					{:else}
 						Set income above
 					{/if}
@@ -337,7 +762,7 @@
 				<div class="summary-label">Annual Savings ({selectedYear})</div>
 				<div class="summary-amount">{formatAsCurrency(annualSavings)}</div>
 				<div class="summary-sub">
-					{#if monthlyIncome > 0}
+					{#if totalMonthlyIncome > 0}
 						Across all 12 months
 					{:else}
 						Set income above
@@ -347,20 +772,20 @@
 		</section>
 
 		<!-- Spending bar -->
-		{#if monthlyIncome > 0 && totalMonthlyBudget > 0}
+		{#if totalMonthlyIncome > 0 && totalMonthlyBudget > 0}
 			<section class="spend-bar-section">
 				<div class="spend-bar">
 					{#each monthlyRows as row}
 						<div
 							class="spend-segment"
-							style="width: {Math.min((row.activeAmount / Math.max(monthlyIncome, totalMonthlyBudget)) * 100, 100)}%; background: {row.color};"
+							style="width: {Math.min((row.activeAmount / Math.max(totalMonthlyIncome, totalMonthlyBudget)) * 100, 100)}%; background: {row.color};"
 							title="{row.category.name}: {formatAsCurrency(row.activeAmount)}"
 						></div>
 					{/each}
 					{#if monthlySavings > 0}
 						<div
 							class="spend-segment savings-segment"
-							style="width: {Math.min((monthlySavings / monthlyIncome) * 100, 100)}%;"
+							style="width: {Math.min((monthlySavings / totalMonthlyIncome) * 100, 100)}%;"
 							title="Savings: {formatAsCurrency(monthlySavings)}"
 						></div>
 					{/if}
@@ -414,7 +839,7 @@
 			<div class="category-list">
 				{#each monthlyRows as row (row.category.id)}
 					{@const isExpanded = expandedChangeCategoryId === row.category.id}
-					{@const pct = monthlyIncome > 0 ? Math.round((row.activeAmount / monthlyIncome) * 100) : null}
+					{@const pct = totalMonthlyIncome > 0 ? Math.round((row.activeAmount / totalMonthlyIncome) * 100) : null}
 
 					<div class="category-item" class:expanded={isExpanded}>
 						<div class="category-row">
@@ -522,7 +947,8 @@
 								<th>{cat.name}</th>
 							{/each}
 							<th>Total Spending</th>
-							{#if monthlyIncome > 0}
+							{#if totalMonthlyIncome > 0}
+								<th>Income</th>
 								<th>Savings</th>
 							{/if}
 						</tr>
@@ -530,14 +956,16 @@
 					<tbody>
 						{#each monthNames as name, m}
 							{@const spent = categories.reduce((acc, cat) => acc + getAmountForMonth(cat, selectedYear, m), 0)}
-							{@const savings = monthlyIncome - spent}
+							{@const rowIncome = incomeSources.reduce((acc, src) => acc + incomeForMonth(src, selectedYear, m), 0) + bonuses.filter((b) => b.year === selectedYear && b.month === m).reduce((acc, b) => acc + b.amount, 0)}
+							{@const savings = rowIncome - spent}
 							<tr class:current-month={m === selectedMonth && selectedYear === now.getFullYear()}>
 								<td class="month-cell">{name}</td>
 								{#each categories as cat}
 									<td>{formatAsCurrency(getAmountForMonth(cat, selectedYear, m))}</td>
 								{/each}
 								<td class="total-cell">{formatAsCurrency(spent)}</td>
-								{#if monthlyIncome > 0}
+								{#if totalMonthlyIncome > 0}
+									<td class="income-cell">{formatAsCurrency(rowIncome)}</td>
 									<td class="savings-cell {savingsClass(savings)}">{formatAsCurrency(savings)}</td>
 								{/if}
 							</tr>
@@ -556,7 +984,10 @@
 							<td class="total-cell">
 								<strong>{formatAsCurrency(Array.from({ length: 12 }, (_, m) => categories.reduce((acc, cat) => acc + getAmountForMonth(cat, selectedYear, m), 0)).reduce((a, b) => a + b, 0))}</strong>
 							</td>
-							{#if monthlyIncome > 0}
+							{#if totalMonthlyIncome > 0}
+								<td class="income-cell">
+									<strong>{formatAsCurrency(Array.from({ length: 12 }, (_, m) => incomeSources.reduce((acc, src) => acc + incomeForMonth(src, selectedYear, m), 0) + bonuses.filter((b) => b.year === selectedYear && b.month === m).reduce((acc, b) => acc + b.amount, 0)).reduce((a, b) => a + b, 0))}</strong>
+								</td>
 								<td class="savings-cell {savingsClass(annualSavings)}"><strong>{formatAsCurrency(annualSavings)}</strong></td>
 							{/if}
 						</tr>
@@ -579,57 +1010,6 @@
 		color: #1a1d23;
 	}
 
-	/* ── Sidebar ── */
-	.sidebar {
-		width: 200px;
-		flex-shrink: 0;
-		background: #1e2130;
-		color: #c8cdd8;
-		display: flex;
-		flex-direction: column;
-		padding: 1.25rem 0;
-		position: sticky;
-		top: 0;
-		height: 100vh;
-		overflow-y: auto;
-	}
-
-	.sidebar-header {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		padding: 0 1.25rem 1.5rem;
-		font-weight: 700;
-		font-size: 1.1rem;
-		color: #fff;
-		border-bottom: 1px solid #2e3348;
-	}
-
-	.logo { font-size: 1.3rem; }
-
-	.sidebar-nav {
-		display: flex;
-		flex-direction: column;
-		gap: 0.15rem;
-		padding: 1rem 0.75rem 0;
-	}
-
-	.nav-item {
-		display: flex;
-		align-items: center;
-		gap: 0.55rem;
-		padding: 0.6rem 0.75rem;
-		border-radius: 8px;
-		color: #9ba3b5;
-		text-decoration: none;
-		font-size: 0.9rem;
-		transition: background 0.15s, color 0.15s;
-	}
-
-	.nav-item:hover { background: #2b2f42; color: #fff; }
-	.nav-item.active { background: #2e3a5c; color: #fff; font-weight: 600; }
-	.nav-icon { font-size: 1rem; }
-
 	/* ── Main ── */
 	.main {
 		flex: 1;
@@ -643,8 +1023,30 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 0.75rem;
 		margin-bottom: 1.5rem;
 	}
+
+	.period-actions {
+		display: flex;
+		gap: 0.5rem;
+	}
+
+	.btn-secondary {
+		padding: 0.45rem 0.85rem;
+		border: 1px solid #d0d5e0;
+		border-radius: 8px;
+		background: #fff;
+		font-size: 0.85rem;
+		font-weight: 500;
+		color: #444;
+		cursor: pointer;
+		text-decoration: none;
+		transition: background 0.15s, border-color 0.15s;
+		white-space: nowrap;
+	}
+	.btn-secondary:hover { background: #eef0f6; border-color: #b0b8cc; }
 
 	.period-nav {
 		display: flex;
@@ -724,18 +1126,147 @@
 		color: #9ba3b5;
 	}
 
-	.income-input {
-		font-size: 1.55rem;
-		font-weight: 700;
-		border: none;
-		outline: none;
-		width: 100%;
-		color: #1a1d23;
-		background: transparent;
-		padding: 0;
+	.summary-label-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
 	}
 
-	.income-input::placeholder { color: #c5c9d6; }
+	.income-sources-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		margin: 0.3rem 0;
+	}
+
+	.income-source-item {
+		border-radius: 8px;
+		border: 1px solid transparent;
+		transition: border-color 0.15s;
+	}
+	.income-source-item.expanded {
+		border-color: #d0d5e0;
+		background: #f9fafb;
+		padding: 0.4rem;
+	}
+
+	.income-source-row,
+	.income-add-row {
+		display: flex;
+		gap: 0.3rem;
+		align-items: center;
+	}
+
+	.income-override {
+		font-size: 0.78rem;
+		color: #8b6bbf;
+		font-weight: 600;
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+
+	.income-changes-panel {
+		margin-top: 0.5rem;
+		padding-top: 0.5rem;
+		border-top: 1px solid #e5e8f0;
+	}
+
+	.income-name-input {
+		flex: 1;
+		min-width: 0;
+		padding: 0.25rem 0.4rem;
+		border: 1px solid #d0d5e0;
+		border-radius: 6px;
+		font-size: 0.82rem;
+		background: #f9fafb;
+	}
+
+	.income-amt-input {
+		width: 80px;
+		padding: 0.25rem 0.4rem;
+		border: 1px solid #d0d5e0;
+		border-radius: 6px;
+		font-size: 0.82rem;
+		text-align: right;
+		background: #f9fafb;
+	}
+
+	.freq-select {
+		padding: 0.25rem 0.3rem;
+		border: 1px solid #d0d5e0;
+		border-radius: 6px;
+		font-size: 0.78rem;
+		background: #f9fafb;
+		color: #555;
+	}
+
+	.btn-icon-tiny {
+		background: transparent;
+		border: 1px solid #d0d5e0;
+		border-radius: 5px;
+		padding: 0.15rem 0.4rem;
+		font-size: 0.75rem;
+		cursor: pointer;
+		color: #555;
+		line-height: 1.4;
+		transition: background 0.15s, color 0.15s;
+		flex-shrink: 0;
+	}
+	.btn-icon-tiny:hover { background: #eef0f6; }
+	.btn-icon-tiny.danger:hover { background: #fdecea; border-color: #c0392b; color: #c0392b; }
+	.btn-icon-tiny.confirm { border-color: #2e8b57; color: #2e8b57; }
+	.btn-icon-tiny.confirm:hover { background: #e8f5ee; }
+
+	.start-date-input {
+		width: 120px;
+		padding: 0.25rem 0.4rem;
+		border: 1px solid #d0d5e0;
+		border-radius: 6px;
+		font-size: 0.78rem;
+		background: #f9fafb;
+		color: #444;
+	}
+
+	.paycheck-count {
+		font-size: 0.78rem;
+		font-weight: 600;
+		color: #4f86c6;
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+
+	.income-section-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-top: 0.5rem;
+		margin-bottom: 0.2rem;
+	}
+
+	.summary-sublabel {
+		font-size: 0.78rem;
+		font-weight: 600;
+		color: #888;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+
+	.bonus-row {
+		display: flex;
+		gap: 0.3rem;
+		align-items: center;
+		margin-bottom: 0.15rem;
+	}
+
+	.bonus-year-input {
+		width: 60px;
+		padding: 0.25rem 0.4rem;
+		border: 1px solid #d0d5e0;
+		border-radius: 6px;
+		font-size: 0.82rem;
+		text-align: right;
+		background: #f9fafb;
+	}
 
 	.calc-link {
 		color: #4f86c6;
@@ -1080,10 +1611,10 @@
 	.total-cell { font-weight: 600; }
 	.savings-cell.positive { color: #2e8b57; font-weight: 600; }
 	.savings-cell.negative { color: #c0392b; font-weight: 600; }
+	.income-cell { color: #4f86c6; font-weight: 500; }
 
 	/* ── Responsive ── */
 	@media (max-width: 900px) {
-		.sidebar { display: none; }
 		.main { padding: 1rem; }
 		.summary-row { grid-template-columns: repeat(2, 1fr); }
 	}

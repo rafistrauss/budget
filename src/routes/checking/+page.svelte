@@ -8,6 +8,7 @@
 	import AmazonLogo from '$lib/AmazonLogo.svelte';
 	import PSEGLogo from '$lib/PSEGLogo.svelte';
 	import VerizonLogo from '$lib/VerizonFiosLogo.svelte';
+	import Nav from '$lib/Nav.svelte';
 
 	const easternTimezone = 'America/New_York'; // Set timezone to Eastern
 
@@ -751,7 +752,9 @@
 	});
 </script>
 
-<main>
+<div class="app">
+	<Nav />
+	<main>
 	<h1>Account Balance Tracker</h1>
 
 	<div class="accounts-container">
@@ -1071,9 +1074,21 @@
 			</table>
 		</div>
 	</div>
-</main>
+	</main>
+</div>
 
 <style>
+	.app {
+		display: flex;
+		min-height: 100vh;
+		font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	}
+
+	main {
+		flex: 1;
+		min-width: 0;
+		padding: 1.5rem 2rem;
+	}
 	.negative {
 		color: red;
 	}
