@@ -4,6 +4,9 @@
 
 	import { formatAsCurrency, safelyGetLocalStorage, safelySetLocalStorage } from '$lib';
 	import Nav from '$lib/Nav.svelte';
+	import { auth, db } from '$lib/firebase.js';
+	import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
+	import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 	const STORAGE_KEY = 'monthly-budget-v5';
 	const CATEGORY_COLORS = [
@@ -79,6 +82,13 @@
 
 	let hasLoadedFromStorage = false;
 
+	/**
+	 * @type {import('firebase/auth').User | null}
+	 */
+	let currentUser = null;
+	let email = '';
+	let password = '';
+
 	let newCategoryName = '';
 	let newCategoryAmount = 0;
 
@@ -98,52 +108,91 @@
 	let monthlySavings = 0;
 	let annualSavings = 0;
 
+	/**
+	 * @param {unknown} parsed
+	 */
+	function applyParsedBudget(parsed) {
+		const p = /** @type {{ categories?: unknown; incomeSources?: unknown; bonuses?: unknown }} */ (parsed);
+		if (Array.isArray(p?.categories)) {
+			categories = normalizeCategories(p.categories);
+		}
+		if (Array.isArray(p?.incomeSources) && p.incomeSources.length > 0) {
+			incomeSources = p.incomeSources
+				.filter((/** @type {unknown} */ s) => s && typeof s === 'object')
+				.map((/** @type {{ id?: unknown; name?: unknown; amount?: unknown; frequency?: unknown; startDate?: unknown; changes?: unknown[] }} */ s, /** @type {number} */ i) => {
+					/** @type {{ effectiveYear: number; effectiveMonth: number; amount: number }[]} */
+					const changes = [];
+					if (Array.isArray(s.changes)) {
+						for (const c of (/** @type {unknown[]} */ (s.changes))) {
+							if (!c || typeof c !== 'object') continue;
+							const cp = /** @type {{ effectiveYear?: unknown; effectiveMonth?: unknown; amount?: unknown }} */ (c);
+							changes.push({
+								effectiveYear: Number(cp.effectiveYear) || now.getFullYear(),
+								effectiveMonth: Number(cp.effectiveMonth) || 0,
+								amount: Number(cp.amount) || 0
+							});
+						}
+						changes.sort((a, b) => compareYearMonth(a.effectiveYear, a.effectiveMonth, b.effectiveYear, b.effectiveMonth));
+					}
+					return {
+						id: typeof s.id === 'string' && s.id ? s.id : `income-${i}`,
+						name: typeof s.name === 'string' && s.name ? s.name : `Income ${i + 1}`,
+						amount: Number(s.amount) || 0,
+						frequency: s.frequency === 'monthly' ? 'monthly' : /** @type {'biweekly'} */ ('biweekly'),
+						changes,
+						...(typeof s.startDate === 'string' && s.startDate ? { startDate: s.startDate } : {})
+					};
+				});
+		}
+		if (Array.isArray(p?.bonuses)) {
+			bonuses = p.bonuses
+				.filter((/** @type {unknown} */ b) => b && typeof b === 'object')
+				.map((/** @type {{ id?: unknown; name?: unknown; amount?: unknown; year?: unknown; month?: unknown }} */ b, /** @type {number} */ i) => ({
+					id: typeof b.id === 'string' && b.id ? b.id : `bonus-${i}`,
+					name: typeof b.name === 'string' && b.name ? b.name : `Bonus ${i + 1}`,
+					amount: Number(b.amount) || 0,
+					year: Number(b.year) || now.getFullYear(),
+					month: Number(b.month) || 0
+				}));
+		}
+	}
+
+	async function syncBudgetToFirebase() {
+		if (!currentUser) return;
+		await setDoc(doc(db, 'budgets', currentUser.uid), { categories, incomeSources, bonuses });
+	}
+
+	function signIn() {
+		if (!email || !password) return alert('Email and password are required');
+		signInWithEmailAndPassword(auth, email, password).catch((err) => {
+			console.error(err);
+			alert('Failed to sign in');
+		});
+	}
+
+	function logOut() {
+		auth.signOut().catch((err) => console.error('Error signing out:', err));
+	}
+
+	onAuthStateChanged(auth, async (user) => {
+		currentUser = user;
+		if (user) {
+			const snap = await getDoc(doc(db, 'budgets', user.uid));
+			if (snap.exists()) {
+				try {
+					applyParsedBudget(snap.data());
+				} catch (err) {
+					console.error('Could not apply Firestore budget', err);
+				}
+			}
+		}
+	});
+
 	onMount(() => {
 		const storedBudget = safelyGetLocalStorage(STORAGE_KEY);
 		if (storedBudget) {
 			try {
-				const parsed = JSON.parse(storedBudget);
-				if (Array.isArray(parsed?.categories)) {
-					categories = normalizeCategories(parsed.categories);
-				}
-				if (Array.isArray(parsed?.incomeSources) && parsed.incomeSources.length > 0) {
-					incomeSources = parsed.incomeSources
-						.filter((/** @type {unknown} */ s) => s && typeof s === 'object')
-						.map((/** @type {{ id?: unknown; name?: unknown; amount?: unknown; frequency?: unknown; startDate?: unknown; changes?: unknown[] }} */ s, /** @type {number} */ i) => {
-							const changes = Array.isArray(s.changes)
-								? (/** @type {unknown[]} */ (s.changes))
-										.filter((c) => c && typeof c === 'object')
-										.map((c) => {
-											const p = /** @type {{ effectiveYear?: unknown; effectiveMonth?: unknown; amount?: unknown }} */ (c);
-											return {
-												effectiveYear: Number(p.effectiveYear) || now.getFullYear(),
-												effectiveMonth: Number(p.effectiveMonth) || 0,
-												amount: Number(p.amount) || 0
-											};
-										})
-										.sort((a, b) => compareYearMonth(a.effectiveYear, a.effectiveMonth, b.effectiveYear, b.effectiveMonth))
-								: [];
-							return {
-								id: typeof s.id === 'string' && s.id ? s.id : `income-${i}`,
-								name: typeof s.name === 'string' && s.name ? s.name : `Income ${i + 1}`,
-								amount: Number(s.amount) || 0,
-								frequency: s.frequency === 'monthly' ? 'monthly' : /** @type {'biweekly'} */ ('biweekly'),
-								changes,
-								...(typeof s.startDate === 'string' && s.startDate ? { startDate: s.startDate } : {})
-							};
-						});
-				}
-				if (Array.isArray(parsed?.bonuses)) {
-					bonuses = parsed.bonuses
-						.filter((/** @type {unknown} */ b) => b && typeof b === 'object')
-						.map((/** @type {{ id?: unknown; name?: unknown; amount?: unknown; year?: unknown; month?: unknown }} */ b, /** @type {number} */ i) => ({
-							id: typeof b.id === 'string' && b.id ? b.id : `bonus-${i}`,
-							name: typeof b.name === 'string' && b.name ? b.name : `Bonus ${i + 1}`,
-							amount: Number(b.amount) || 0,
-							year: Number(b.year) || now.getFullYear(),
-							month: Number(b.month) || 0
-						}));
-				}
+				applyParsedBudget(JSON.parse(storedBudget));
 			} catch (error) {
 				console.error('Could not parse saved budget', error);
 			}
@@ -158,6 +207,7 @@
 
 	$: if (hasLoadedFromStorage) {
 		safelySetLocalStorage(STORAGE_KEY, JSON.stringify({ categories, incomeSources, bonuses }));
+		syncBudgetToFirebase();
 	}
 
 	/**
@@ -551,6 +601,22 @@
 
 <div class="app">
 	<Nav />
+
+	<!-- ── Firebase auth ── -->
+	{#if !currentUser}
+		<div class="auth-bar">
+			<form class="auth-form" on:submit|preventDefault={signIn}>
+				<input type="email" bind:value={email} placeholder="Email" required />
+				<input type="password" bind:value={password} placeholder="Password" required />
+				<button type="submit" class="btn-secondary">Sign in to sync</button>
+			</form>
+		</div>
+	{:else}
+		<div class="auth-bar auth-bar--signed-in">
+			<span class="auth-email">{currentUser.email}</span>
+			<button class="btn-secondary" on:click={logOut}>Sign out</button>
+		</div>
+	{/if}
 
 	<!-- ── Main ── -->
 	<main class="main">
@@ -1000,6 +1066,40 @@
 </div>
 
 <style>
+	/* ── Auth bar ── */
+	.auth-bar {
+		position: fixed;
+		top: 0;
+		right: 0;
+		z-index: 100;
+		padding: 0.4rem 0.75rem;
+		background: #fff;
+		border-bottom-left-radius: 6px;
+		box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.auth-form {
+		display: flex;
+		gap: 0.4rem;
+		align-items: center;
+	}
+	.auth-form input {
+		padding: 0.3rem 0.5rem;
+		border: 1px solid #ccc;
+		border-radius: 4px;
+		font-size: 0.85rem;
+		width: 140px;
+	}
+	.auth-bar--signed-in {
+		gap: 0.75rem;
+	}
+	.auth-email {
+		font-size: 0.8rem;
+		color: #555;
+	}
+
 	/* ── Layout ── */
 	.app {
 		display: flex;
