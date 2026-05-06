@@ -28,8 +28,16 @@
 		</a>
 	</nav>
 </aside>
+<!-- Spacer keeps flex siblings correctly offset while sidebar is fixed -->
+<div class="sidebar-spacer" aria-hidden="true"></div>
 
 <style>
+	:global(html, body) {
+		margin: 0;
+		padding: 0;
+		box-sizing: border-box;
+	}
+
 	.sidebar {
 		width: 200px;
 		flex-shrink: 0;
@@ -38,10 +46,17 @@
 		display: flex;
 		flex-direction: column;
 		padding: 1.25rem 0;
-		position: sticky;
+		position: fixed;
+		left: 0;
 		top: 0;
 		height: 100vh;
 		overflow-y: auto;
+		z-index: 100;
+	}
+
+	.sidebar-spacer {
+		width: 200px;
+		flex-shrink: 0;
 	}
 
 	.sidebar-header {
@@ -81,6 +96,30 @@
 	.nav-icon { font-size: 1rem; }
 
 	@media (max-width: 900px) {
-		.sidebar { display: none; }
+		:global(.app) { flex-direction: column; }
+		.sidebar {
+			position: sticky;
+			top: 0;
+			width: 100%;
+			height: auto;
+			flex-direction: row;
+			align-items: center;
+			padding: 0;
+			overflow-y: visible;
+		}
+		.sidebar-spacer { display: none; }
+		.sidebar-header {
+			border-bottom: none;
+			border-right: 1px solid #2e3348;
+			padding: 0.6rem 1rem;
+			flex-shrink: 0;
+		}
+		.sidebar-nav {
+			flex-direction: row;
+			padding: 0.4rem 0.5rem;
+			gap: 0.25rem;
+			flex-wrap: wrap;
+		}
+		.nav-item { padding: 0.4rem 0.65rem; }
 	}
 </style>
