@@ -401,8 +401,9 @@
 		addingIncome = false;
 	}
 
-	/** @param {string} id */
-	function removeIncomeSource(id) {
+	/** @param {string} id @param {string} name */
+	function removeIncomeSource(id, name) {
+		if (!confirm(`Delete income source "${name}"? This cannot be undone.`)) return;
 		incomeSources = incomeSources.filter((s) => s.id !== id);
 		if (expandedIncomeSourceId === id) expandedIncomeSourceId = '';
 	}
@@ -467,8 +468,9 @@
 		addingBonus = false;
 	}
 
-	/** @param {string} id */
-	function removeBonus(id) {
+	/** @param {string} id @param {string} name */
+	function removeBonus(id, name) {
+		if (!confirm(`Delete bonus "${name}"? This cannot be undone.`)) return;
 		bonuses = bonuses.filter((b) => b.id !== id);
 	}
 
@@ -500,8 +502,9 @@
 		addingCategory = false;
 	}
 
-	/** @param {string} categoryId */
-	function removeCategory(categoryId) {
+	/** @param {string} categoryId @param {string} categoryName */
+	function removeCategory(categoryId, categoryName) {
+		if (!confirm(`Delete category "${categoryName}"? This cannot be undone.`)) return;
 		categories = categories.filter((c) => c.id !== categoryId);
 		if (expandedChangeCategoryId === categoryId) expandedChangeCategoryId = '';
 	}
@@ -574,8 +577,10 @@
 	/**
 	 * @param {string} categoryId
 	 * @param {string} eventId
+	 * @param {string} displayText
 	 */
-	function removeCategoryEvent(categoryId, eventId) {
+	function removeCategoryEvent(categoryId, eventId, displayText) {
+		if (!confirm(`Delete event "${displayText}"? This cannot be undone.`)) return;
 		categories = categories.map((category) => {
 			if (category.id !== categoryId) return category;
 			return { ...category, events: (category.events ?? []).filter((evt) => evt.id !== eventId) };
@@ -585,8 +590,10 @@
 	/**
 	 * @param {string} categoryId
 	 * @param {number} index
+	 * @param {string} displayText
 	 */
-	function removeScheduledChange(categoryId, index) {
+	function removeScheduledChange(categoryId, index, displayText) {
+		if (!confirm(`Delete change "${displayText}"? This cannot be undone.`)) return;
 		categories = categories.map((category) => {
 			if (category.id !== categoryId) return category;
 			return {
@@ -916,7 +923,7 @@
 									on:click={() => toggleIncomeChangePanel(src.id)}
 								>{(src.changes ?? []).length > 0 ? `⏱ ${src.changes.length}` : '⏱'}</button>
 								{#if incomeSources.length > 1}
-									<button class="btn-icon-tiny danger" title="Remove" on:click={() => removeIncomeSource(src.id)}>✕</button>
+									<button class="btn-icon-tiny danger" title="Remove" on:click={() => removeIncomeSource(src.id, src.name)}>✕</button>
 								{/if}
 							</div>
 
@@ -992,7 +999,7 @@
 							{/each}
 						</select>
 						<input class="bonus-year-input" type="number" bind:value={bonus.year} min="2000" max="2100" on:change={() => (bonuses = [...bonuses])} />
-						<button class="btn-icon-tiny danger" title="Remove bonus" on:click={() => removeBonus(bonus.id)}>✕</button>
+						<button class="btn-icon-tiny danger" title="Remove bonus" on:click={() => removeBonus(bonus.id, bonus.name)}>✕</button>
 					</div>
 				{/each}
 				{#if addingBonus}
@@ -1168,7 +1175,7 @@
 								<button
 									class="btn-icon danger"
 									title="Remove category"
-									on:click={() => removeCategory(row.category.id)}
+									on:click={() => removeCategory(row.category.id, row.category.name)}
 								>✕</button>
 							</div>
 						</div>
@@ -1198,7 +1205,7 @@
 													<td>{monthNames[change.effectiveMonth]} {change.effectiveYear}</td>
 													<td>{formatAsCurrency(change.amount)}</td>
 													<td>
-														<button class="btn-icon danger small" on:click={() => removeScheduledChange(row.category.id, index)}>✕</button>
+														<button class="btn-icon danger small" on:click={() => removeScheduledChange(row.category.id, index, `${monthNames[change.effectiveMonth]} ${change.effectiveYear}`)}>✕</button>
 													</td>
 												</tr>
 											{/each}
@@ -1228,7 +1235,7 @@
 													</td>
 													<td>{formatAsCurrency(evt.amount)}</td>
 													<td>
-														<button class="btn-icon danger small" on:click={() => removeCategoryEvent(row.category.id, evt.id)}>✕</button>
+														<button class="btn-icon danger small" on:click={() => removeCategoryEvent(row.category.id, evt.id, `${monthNames[evt.month]} ${evt.day}`)}>✕</button>
 													</td>
 												</tr>
 											{/each}
