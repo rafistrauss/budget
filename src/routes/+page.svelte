@@ -208,9 +208,21 @@
 		migrateScheduledExpensesCategory();
 	}
 
+	/** @type {ReturnType<typeof setTimeout> | undefined} */
+	let syncDebounceTimer;
+
 	async function syncBudgetToFirebase() {
 		if (!currentUser) return;
-		await setDoc(doc(db, 'budgets', currentUser.uid), { categories, incomeSources, bonuses });
+		try {
+			await setDoc(doc(db, 'budgets', currentUser.uid), { categories, incomeSources, bonuses });
+		} catch (err) {
+			console.error('Failed to sync budget to Firebase:', err);
+		}
+	}
+
+	function debouncedSyncBudgetToFirebase() {
+		clearTimeout(syncDebounceTimer);
+		syncDebounceTimer = setTimeout(syncBudgetToFirebase, 2000);
 	}
 
 	function signIn() {
@@ -258,7 +270,7 @@
 
 	$: if (hasLoadedFromStorage) {
 		safelySetLocalStorage(STORAGE_KEY, JSON.stringify({ categories, incomeSources, bonuses }));
-		syncBudgetToFirebase();
+		debouncedSyncBudgetToFirebase();
 	}
 
 	/**
@@ -270,8 +282,8 @@
 	 */
 	function biweeklyPaychecksInMonth(startDate, year, month) {
 		const refMs = new Date(startDate + 'T12:00:00').getTime();
-		const firstMs = new Date(year, month, 1).getTime();
-		const lastMs = new Date(year, month + 1, 0, 23, 59, 59).getTime();
+		const firstMs = new Date(year, month, 1, 12, 0, 0).getTime();
+		const lastMs = new Date(year, month + 1, 0, 12, 0, 0).getTime();
 		const interval = 14 * 24 * 60 * 60 * 1000;
 		const nStart = Math.ceil((firstMs - refMs) / interval);
 		let count = 0;
@@ -315,6 +327,11 @@
 		bonuses
 			.filter((b) => b.year === selectedYear && b.month === selectedMonth)
 			.reduce((acc, b) => acc + b.amount, 0);
+
+	$: hasYearlyIncome =
+		incomeSources.some((src) =>
+			Array.from({ length: 12 }, (_, m) => incomeForMonth(src, selectedYear, m)).some((v) => v > 0)
+		) || bonuses.some((b) => b.year === selectedYear && b.amount > 0);
 
 	$: {
 		yearlyProjectionView;
@@ -701,6 +718,8 @@
 	 * @returns {BudgetCategory[]}
 	 */
 	function normalizeCategories(unknownCategories) {
+		/** @type {BudgetCategory[]} */
+		const accumulated = [];
 		return /** @type {BudgetCategory[]} */ (unknownCategories
 			.map((rawCategory, index) => {
 				if (!rawCategory || typeof rawCategory !== 'object') return null;
@@ -710,7 +729,7 @@
 						? candidate.name
 						: `Category ${index + 1}`;
 				const id =
-					typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id : makeCategoryId(name);
+					typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id : makeCategoryIdFromList(name, accumulated);
 				/** @type {BudgetChange[]} */
 				const changes = [];
 				if (Array.isArray(candidate.changes)) {
@@ -745,7 +764,9 @@
 					}
 				}
 
-				return { id, name, baseAmount: Number(candidate.baseAmount) || 0, changes, events };
+				const normalized = { id, name, baseAmount: Number(candidate.baseAmount) || 0, changes, events };
+				accumulated.push(normalized);
+				return normalized;
 			})
 			.filter(Boolean));
 	}
@@ -1023,7 +1044,7 @@
 			<div class="summary-card spending-card">
 				<div class="summary-label">Total Spending</div>
 				<div class="summary-amount">{formatAsCurrency(totalMonthlyBudget)}</div>
-				<div class="summary-sub">{formatAsCurrency(totalMonthlyBudget / 12 * 12)} / year</div>
+				<div class="summary-sub">{formatAsCurrency(totalMonthlyBudget * 12)} / year</div>
 			</div>
 
 			<div class="summary-card savings-card {savingsClass(monthlySavings)}">
@@ -1306,7 +1327,7 @@
 						<tr>
 							<th>Month</th>
 							<th>Total Spending</th>
-							{#if totalMonthlyIncome > 0}
+							{#if hasYearlyIncome}
 								<th>Income</th>
 								<th>Savings</th>
 							{/if}
@@ -1324,7 +1345,7 @@
 							<tr class:current-month={m === selectedMonth && selectedYear === now.getFullYear()}>
 								<td class="month-cell">{name}</td>
 								<td class="total-cell">{formatAsCurrency(spent)}</td>
-								{#if totalMonthlyIncome > 0}
+								{#if hasYearlyIncome}
 									<td class="income-cell">{formatAsCurrency(rowIncome)}</td>
 									<td class="savings-cell {savingsClass(savings)}">{formatAsCurrency(savings)}</td>
 								{/if}
@@ -1341,7 +1362,7 @@
 							<td class="total-cell">
 								<strong>{formatAsCurrency(Array.from({ length: 12 }, (_, m) => categories.reduce((acc, cat) => acc + getAmountForMonth(cat, selectedYear, m, yearlyProjectionView), 0)).reduce((a, b) => a + b, 0))}</strong>
 							</td>
-							{#if totalMonthlyIncome > 0}
+							{#if hasYearlyIncome}
 								<td class="income-cell">
 									<strong>{formatAsCurrency(Array.from({ length: 12 }, (_, m) => incomeSources.reduce((acc, src) => acc + incomeForMonth(src, selectedYear, m), 0) + bonuses.filter((b) => b.year === selectedYear && b.month === m).reduce((acc, b) => acc + b.amount, 0)).reduce((a, b) => a + b, 0))}</strong>
 								</td>

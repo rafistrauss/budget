@@ -2,28 +2,13 @@
 	import { base } from '$app/paths';
 	import { onMount } from 'svelte';
 
-	import { initializeApp } from 'firebase/app';
-	import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
-	import { doc, getDoc, getFirestore } from 'firebase/firestore';
+	import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
+	import { doc, getDoc } from 'firebase/firestore';
 
 	import { formatAsCurrency, safelyGetLocalStorage, safelySetLocalStorage } from '$lib';
 	import TaxesByState from '$lib/TaxesByState.svelte';
 	import Nav from '$lib/Nav.svelte';
-
-	const firebaseConfig = {
-		apiKey: 'AIzaSyC_wqKaOmHf0Nq31JOZtCt3pSQN_m1FOLk',
-		authDomain: 'budget-e231f.firebaseapp.com',
-		projectId: 'budget-e231f',
-		storageBucket: 'budget-e231f.appspot.com',
-		messagingSenderId: '324153005171',
-		appId: '1:324153005171:web:1a3196daf6a3b148b94606'
-	};
-
-	const app = initializeApp(firebaseConfig);
-
-	const auth = getAuth(app);
-
-	const db = getFirestore(app);
+	import { auth, db } from '$lib/firebase.js';
 
 	let currentUser = auth.currentUser;
 
@@ -58,6 +43,8 @@
 	 */
 	let expenses = []; // Array to store expenses, each expense will be an object { label: string, amount: number }
 
+	let hasLoaded = false;
+
 	let /** @type {number} */
 		yearlyBonus1,
 		/** @type {number} */
@@ -65,9 +52,7 @@
 		/** @type {number} */
 		yearlyBonus2,
 		/** @type {number} */
-		yearly401kContribution2,
-		/** @type {number} */
-		taxableIncome;
+		yearly401kContribution2;
 
 	$: {
 		yearlyBonus1 = (yearlySalary1 || 0) * ((bonusPercentage1 || 0) / 100);
@@ -76,7 +61,7 @@
 		yearly401kContribution2 = (yearlySalary2 || 0) * ((_401kContributionPercentage2 || 0) / 100);
 	}
 
-	$: {
+	$: if (hasLoaded) {
 		safelySetLocalStorage('expenses', JSON.stringify(expenses));
 	}
 
@@ -84,6 +69,7 @@
 	onMount(() => {
 		const storedExpenses = safelyGetLocalStorage('expenses');
 		expenses = storedExpenses ? JSON.parse(storedExpenses) : [];
+		hasLoaded = true;
 	});
 
 	// Function to add a new expense
@@ -148,7 +134,7 @@
 		{:else}
 			<h2>Sign In</h2>
 			<div>
-				<form action="">
+				<form on:submit|preventDefault={signIn}>
 					<label for="email">Email:</label>
 					<input type="email" id="email" bind:value={email} autocomplete="email" />
 					<br />
@@ -160,7 +146,7 @@
 						autocomplete="current-password"
 					/>
 					<br />
-					<button on:click={signIn}>Sign In</button>
+					<button type="submit">Sign In</button>
 				</form>
 			</div>
 		{/if}
@@ -192,29 +178,29 @@
 						bind:value={_401kContributionPercentage1}
 					/>
 					<br />
-					<label for="healthCareContribution">Healthcare FSA Contribution ($):</label>
+					<label for="healthCareContribution1">Healthcare FSA Contribution ($):</label>
 					<input
 						type="number"
-						id="healthCareContribution"
+						id="healthCareContribution1"
 						bind:value={health_care_fsa_contribution_1}
 					/>
 					<br />
-					<label for="dependentCareContribution">Dependent Care FSA Contribution ($):</label>
+					<label for="dependentCareContribution1">Dependent Care FSA Contribution ($):</label>
 					<input
 						type="number"
-						id="dependentCareContribution"
+						id="dependentCareContribution1"
 						bind:value={dependent_care_fsa_contribution_1}
 					/>
 					<br />
 					<br />
-					<label for="medicalDeduction">Medical Deduction ($):</label>
-					<input type="number" id="medicalDeduction" bind:value={annual_medical_deduction_1} />
+					<label for="medicalDeduction1">Medical Deduction ($):</label>
+					<input type="number" id="medicalDeduction1" bind:value={annual_medical_deduction_1} />
 					<br />
-					<label for="dentalDeduction">Dental Deduction ($):</label>
-					<input type="number" id="dentalDeduction" bind:value={annual_dental_deduction_1} />
+					<label for="dentalDeduction1">Dental Deduction ($):</label>
+					<input type="number" id="dentalDeduction1" bind:value={annual_dental_deduction_1} />
 					<br />
-					<label for="visionDeduction">Vision Deduction ($):</label>
-					<input type="number" id="visionDeduction" bind:value={annual_vision_deduction_1} />
+					<label for="visionDeduction1">Vision Deduction ($):</label>
+					<input type="number" id="visionDeduction1" bind:value={annual_vision_deduction_1} />
 					<br />
 				</div>
 				<div>
@@ -238,29 +224,29 @@
 						bind:value={_401kContributionPercentage2}
 					/>
 					<br />
-					<label for="healthCareContribution">Healthcare FSA Contribution ($):</label>
+					<label for="healthCareContribution2">Healthcare FSA Contribution ($):</label>
 					<input
 						type="number"
-						id="healthCareContribution"
+						id="healthCareContribution2"
 						bind:value={health_care_fsa_contribution_2}
 					/>
 					<br />
-					<label for="dependentCareContribution">Dependent Care FSA Contribution ($):</label>
+					<label for="dependentCareContribution2">Dependent Care FSA Contribution ($):</label>
 					<input
 						type="number"
-						id="dependentCareContribution"
+						id="dependentCareContribution2"
 						bind:value={dependent_care_fsa_contribution_2}
 					/>
 					<br />
 					<br />
-					<label for="medicalDeduction">Medical Deduction ($):</label>
-					<input type="number" id="medicalDeduction" bind:value={annual_medical_deduction_2} />
+					<label for="medicalDeduction2">Medical Deduction ($):</label>
+					<input type="number" id="medicalDeduction2" bind:value={annual_medical_deduction_2} />
 					<br />
-					<label for="dentalDeduction">Dental Deduction ($):</label>
-					<input type="number" id="dentalDeduction" bind:value={annual_dental_deduction_2} />
+					<label for="dentalDeduction2">Dental Deduction ($):</label>
+					<input type="number" id="dentalDeduction2" bind:value={annual_dental_deduction_2} />
 					<br />
-					<label for="visionDeduction">Vision Deduction ($):</label>
-					<input type="number" id="visionDeduction" bind:value={annual_vision_deduction_2} />
+					<label for="visionDeduction2">Vision Deduction ($):</label>
+					<input type="number" id="visionDeduction2" bind:value={annual_vision_deduction_2} />
 					<br />
 				</div>
 			</div>
@@ -342,7 +328,6 @@
 				<TaxesByState
 					{currentState}
 					{currentYear}
-					{taxableIncome}
 					health_care_fsa_contributions={[health_care_fsa_contribution_1, health_care_fsa_contribution_2]}
 					dependent_care_fsa_contributions={[dependent_care_fsa_contribution_1, dependent_care_fsa_contribution_2]}
 					yearlySalaries={[yearlySalary1,yearlySalary2]}
