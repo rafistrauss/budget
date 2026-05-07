@@ -26,15 +26,19 @@
 	 */
 
 	/**
-	 * @typedef {{ id: string; name: string; baseAmount: number; changes: BudgetChange[] }} BudgetCategory
+	 * @typedef {{ id: string; amount: number; kind: 'yearly' | 'one-time'; month: number; day: number; year?: number; label?: string }} CategoryEvent
+	 */
+
+	/**
+	 * @typedef {{ id: string; name: string; baseAmount: number; changes: BudgetChange[]; events: CategoryEvent[] }} BudgetCategory
 	 */
 
 	/** @type {BudgetCategory[]} */
 	let categories = [
-		{ id: 'housing', name: 'Housing', baseAmount: 2500, changes: [] },
-		{ id: 'education', name: 'Education', baseAmount: 1000, changes: [] },
-		{ id: 'groceries', name: 'Groceries', baseAmount: 700, changes: [] },
-		{ id: 'transport', name: 'Transport', baseAmount: 400, changes: [] }
+		{ id: 'housing', name: 'Housing', baseAmount: 2500, changes: [], events: [] },
+		{ id: 'education', name: 'Education', baseAmount: 1000, changes: [], events: [] },
+		{ id: 'groceries', name: 'Groceries', baseAmount: 700, changes: [], events: [] },
+		{ id: 'transport', name: 'Transport', baseAmount: 400, changes: [], events: [] }
 	];
 
 	/**
@@ -101,6 +105,12 @@
 	let changeEffectiveYear = selectedYear;
 	let changeEffectiveMonth = selectedMonth;
 	let changeAmount = 0;
+	/** @type {'monthly' | 'yearly' | 'one-time'} */
+	let changeMode = 'monthly';
+	let eventLabel = '';
+	let eventMonth = selectedMonth;
+	let eventDay = 1;
+	let eventYear = selectedYear;
 
 	/** @type {{ category: BudgetCategory; activeAmount: number; color: string }[]} */
 	let monthlyRows = [];
@@ -112,7 +122,7 @@
 	 * @param {unknown} parsed
 	 */
 	function applyParsedBudget(parsed) {
-		const p = /** @type {{ categories?: unknown; incomeSources?: unknown; bonuses?: unknown }} */ (parsed);
+		const p = /** @type {{ categories?: unknown; incomeSources?: unknown; bonuses?: unknown; expenses?: unknown }} */ (parsed);
 		if (Array.isArray(p?.categories)) {
 			categories = normalizeCategories(p.categories);
 		}
@@ -154,6 +164,39 @@
 					year: Number(b.year) || now.getFullYear(),
 					month: Number(b.month) || 0
 				}));
+		}
+		// Migrate legacy top-level expenses into a dedicated category events list.
+		if (Array.isArray(p?.expenses)) {
+			const legacyEvents = p.expenses
+				.filter((/** @type {unknown} */ e) => e && typeof e === 'object')
+				.map((/** @type {{ id?: unknown; name?: unknown; amount?: unknown; frequency?: unknown; month?: unknown; day?: unknown; date?: unknown }} */ e, /** @type {number} */ i) => {
+					const isOneTime = e.frequency === 'one-time';
+					const fromDate = typeof e.date === 'string' ? new Date(e.date + 'T12:00:00') : null;
+					const parsedMonth = Number(e.month);
+					const parsedDay = Number(e.day);
+					return {
+						id: typeof e.id === 'string' && e.id ? e.id : `legacy-expense-${i}`,
+						label: typeof e.name === 'string' ? e.name : `Expense ${i + 1}`,
+						amount: Number(e.amount) || 0,
+						kind: isOneTime ? /** @type {'one-time'} */ ('one-time') : /** @type {'yearly'} */ ('yearly'),
+						month: Number.isFinite(parsedMonth) ? parsedMonth : (fromDate ? fromDate.getMonth() : now.getMonth()),
+						day: Number.isFinite(parsedDay) ? parsedDay : (fromDate ? fromDate.getDate() : 1),
+						...(isOneTime && fromDate ? { year: fromDate.getFullYear() } : {})
+					};
+				});
+			if (legacyEvents.length > 0) {
+				const existing = categories.find((c) => c.id === 'scheduled-expenses');
+				if (existing) {
+					categories = categories.map((c) =>
+						c.id === 'scheduled-expenses' ? { ...c, events: [...(c.events ?? []), ...legacyEvents] } : c
+					);
+				} else {
+					categories = [
+						...categories,
+						{ id: 'scheduled-expenses', name: 'Scheduled Expenses', baseAmount: 0, changes: [], events: legacyEvents }
+					];
+				}
+			}
 		}
 	}
 
@@ -312,48 +355,7 @@
 		const reader = new FileReader();
 		reader.onload = (ev) => {
 			try {
-				const parsed = JSON.parse(/** @type {string} */ (ev.target?.result));
-				if (Array.isArray(parsed?.categories)) {
-					categories = normalizeCategories(parsed.categories);
-				}
-				if (Array.isArray(parsed?.incomeSources) && parsed.incomeSources.length > 0) {
-					incomeSources = parsed.incomeSources
-						.filter((/** @type {unknown} */ s) => s && typeof s === 'object')
-						.map((/** @type {{ id?: unknown; name?: unknown; amount?: unknown; frequency?: unknown; startDate?: unknown; changes?: unknown[] }} */ s, /** @type {number} */ i) => {
-							const changes = Array.isArray(s.changes)
-								? (/** @type {unknown[]} */ (s.changes))
-										.filter((c) => c && typeof c === 'object')
-										.map((c) => {
-											const p = /** @type {{ effectiveYear?: unknown; effectiveMonth?: unknown; amount?: unknown }} */ (c);
-											return {
-												effectiveYear: Number(p.effectiveYear) || now.getFullYear(),
-												effectiveMonth: Number(p.effectiveMonth) || 0,
-												amount: Number(p.amount) || 0
-											};
-										})
-										.sort((a, b) => compareYearMonth(a.effectiveYear, a.effectiveMonth, b.effectiveYear, b.effectiveMonth))
-								: [];
-							return {
-								id: typeof s.id === 'string' && s.id ? s.id : `income-${i}`,
-								name: typeof s.name === 'string' && s.name ? s.name : `Income ${i + 1}`,
-								amount: Number(s.amount) || 0,
-								frequency: s.frequency === 'monthly' ? 'monthly' : /** @type {'biweekly'} */ ('biweekly'),
-								changes,
-								...(typeof s.startDate === 'string' && s.startDate ? { startDate: s.startDate } : {})
-							};
-						});
-				}
-				if (Array.isArray(parsed?.bonuses)) {
-					bonuses = parsed.bonuses
-						.filter((/** @type {unknown} */ b) => b && typeof b === 'object')
-						.map((/** @type {{ id?: unknown; name?: unknown; amount?: unknown; year?: unknown; month?: unknown }} */ b, /** @type {number} */ i) => ({
-							id: typeof b.id === 'string' && b.id ? b.id : `bonus-${i}`,
-							name: typeof b.name === 'string' && b.name ? b.name : `Bonus ${i + 1}`,
-							amount: Number(b.amount) || 0,
-							year: Number(b.year) || now.getFullYear(),
-							month: Number(b.month) || 0
-						}));
-				}
+				applyParsedBudget(JSON.parse(/** @type {string} */ (ev.target?.result)));
 			} catch (err) {
 				alert('Failed to import: invalid JSON file.');
 				console.error(err);
@@ -463,7 +465,7 @@
 		const id = makeCategoryId(name);
 		categories = [
 			...categories,
-			{ id, name, baseAmount: Number(newCategoryAmount) || 0, changes: [] }
+			{ id, name, baseAmount: Number(newCategoryAmount) || 0, changes: [], events: [] }
 		];
 
 		newCategoryName = '';
@@ -485,6 +487,11 @@
 			expandedChangeCategoryId = id;
 			changeEffectiveYear = selectedYear;
 			changeEffectiveMonth = selectedMonth;
+			changeMode = 'monthly';
+			eventMonth = selectedMonth;
+			eventDay = 1;
+			eventYear = selectedYear;
+			eventLabel = '';
 			changeAmount = getAmountForMonth(
 				categories.find((c) => c.id === id) ?? categories[0],
 				selectedYear,
@@ -495,6 +502,22 @@
 
 	function addScheduledChange() {
 		if (!expandedChangeCategoryId) return;
+		if (changeMode !== 'monthly') {
+			const nextEvent = {
+				id: `event-${Date.now()}`,
+				amount: Number(changeAmount) || 0,
+				kind: changeMode,
+				month: Number(eventMonth),
+				day: Number(eventDay),
+				...(changeMode === 'one-time' ? { year: Number(eventYear) } : {}),
+				...(eventLabel.trim() ? { label: eventLabel.trim() } : {})
+			};
+			categories = categories.map((category) => {
+				if (category.id !== expandedChangeCategoryId) return category;
+				return { ...category, events: [...(category.events ?? []), nextEvent] };
+			});
+			return;
+		}
 
 		categories = categories.map((category) => {
 			if (category.id !== expandedChangeCategoryId) return category;
@@ -516,6 +539,17 @@
 
 	/**
 	 * @param {string} categoryId
+	 * @param {string} eventId
+	 */
+	function removeCategoryEvent(categoryId, eventId) {
+		categories = categories.map((category) => {
+			if (category.id !== categoryId) return category;
+			return { ...category, events: (category.events ?? []).filter((evt) => evt.id !== eventId) };
+		});
+	}
+
+	/**
+	 * @param {string} categoryId
 	 * @param {number} index
 	 */
 	function removeScheduledChange(categoryId, index) {
@@ -525,6 +559,33 @@
 				...category,
 				changes: category.changes.filter((_, i) => i !== index)
 			};
+		});
+	}
+
+	/**
+	 * Update the amount that is active for the currently selected month.
+	 * If a scheduled monthly change is already active, edit that change; otherwise edit base amount.
+	 * @param {string} categoryId
+	 * @param {number} nextAmount
+	 */
+	function updateCategoryAmountForSelectedMonth(categoryId, nextAmount) {
+		const safeAmount = Number(nextAmount) || 0;
+		categories = categories.map((category) => {
+			if (category.id !== categoryId) return category;
+			let latestActiveChangeIndex = -1;
+			for (let i = 0; i < category.changes.length; i++) {
+				const change = category.changes[i];
+				if (compareYearMonth(change.effectiveYear, change.effectiveMonth, selectedYear, selectedMonth) <= 0) {
+					latestActiveChangeIndex = i;
+				}
+			}
+			if (latestActiveChangeIndex >= 0) {
+				const nextChanges = category.changes.map((change, i) =>
+					i === latestActiveChangeIndex ? { ...change, amount: safeAmount } : change
+				);
+				return { ...category, changes: nextChanges };
+			}
+			return { ...category, baseAmount: safeAmount };
 		});
 	}
 
@@ -540,7 +601,21 @@
 				amount = Number(change.amount) || 0;
 			}
 		}
-		return amount;
+		return amount + getCategoryEventAmountForMonth(category, year, month);
+	}
+
+	/**
+	 * @param {BudgetCategory} category
+	 * @param {number} year
+	 * @param {number} month
+	 */
+	function getCategoryEventAmountForMonth(category, year, month) {
+		return (category.events ?? []).reduce((acc, evt) => {
+			if (evt.kind === 'yearly') {
+				return evt.month === month ? acc + (Number(evt.amount) || 0) : acc;
+			}
+			return evt.month === month && evt.year === year ? acc + (Number(evt.amount) || 0) : acc;
+		}, 0);
 	}
 
 	/**
@@ -569,33 +644,52 @@
 	 * @returns {BudgetCategory[]}
 	 */
 	function normalizeCategories(unknownCategories) {
-		return unknownCategories
+		return /** @type {BudgetCategory[]} */ (unknownCategories
 			.map((rawCategory, index) => {
 				if (!rawCategory || typeof rawCategory !== 'object') return null;
-				const candidate = /** @type {{ id?: unknown; name?: unknown; baseAmount?: unknown; changes?: unknown[] }} */ (rawCategory);
+				const candidate = /** @type {{ id?: unknown; name?: unknown; baseAmount?: unknown; changes?: unknown[]; events?: unknown[] }} */ (rawCategory);
 				const name =
 					typeof candidate.name === 'string' && candidate.name.trim()
 						? candidate.name
 						: `Category ${index + 1}`;
 				const id =
 					typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id : makeCategoryId(name);
-				const changes = Array.isArray(candidate.changes)
-					? candidate.changes
-							.map((change) => {
-								if (!change || typeof change !== 'object') return null;
-								const p = /** @type {{ effectiveYear?: unknown; effectiveMonth?: unknown; amount?: unknown }} */ (change);
-								return {
-									effectiveYear: Number(p.effectiveYear) || now.getFullYear(),
-									effectiveMonth: Number(p.effectiveMonth) || 0,
-									amount: Number(p.amount) || 0
-								};
-							})
-							.filter(Boolean)
-							.sort((a, b) => compareYearMonth(a.effectiveYear, a.effectiveMonth, b.effectiveYear, b.effectiveMonth))
-					: [];
-				return { id, name, baseAmount: Number(candidate.baseAmount) || 0, changes };
+				/** @type {BudgetChange[]} */
+				const changes = [];
+				if (Array.isArray(candidate.changes)) {
+					for (const change of candidate.changes) {
+						if (!change || typeof change !== 'object') continue;
+						const p = /** @type {{ effectiveYear?: unknown; effectiveMonth?: unknown; amount?: unknown }} */ (change);
+						changes.push({
+							effectiveYear: Number(p.effectiveYear) || now.getFullYear(),
+							effectiveMonth: Number(p.effectiveMonth) || 0,
+							amount: Number(p.amount) || 0
+						});
+					}
+					changes.sort((a, b) => compareYearMonth(a.effectiveYear, a.effectiveMonth, b.effectiveYear, b.effectiveMonth));
+				}
+
+				/** @type {CategoryEvent[]} */
+				const events = [];
+				if (Array.isArray(candidate.events)) {
+					for (const event of candidate.events) {
+						if (!event || typeof event !== 'object') continue;
+						const p = /** @type {{ id?: unknown; amount?: unknown; kind?: unknown; month?: unknown; day?: unknown; year?: unknown; label?: unknown }} */ (event);
+						events.push({
+							id: typeof p.id === 'string' && p.id ? p.id : `event-${Date.now()}-${events.length}`,
+							amount: Number(p.amount) || 0,
+							kind: p.kind === 'one-time' ? 'one-time' : 'yearly',
+							month: Number(p.month) || 0,
+							day: Number(p.day) || 1,
+							...(p.kind === 'one-time' ? { year: Number(p.year) || now.getFullYear() } : {}),
+							...(typeof p.label === 'string' && p.label.trim() ? { label: p.label.trim() } : {})
+						});
+					}
+				}
+
+				return { id, name, baseAmount: Number(candidate.baseAmount) || 0, changes, events };
 			})
-			.filter(Boolean);
+			.filter(Boolean));
 	}
 </script>
 
@@ -906,6 +1000,7 @@
 				{#each monthlyRows as row (row.category.id)}
 					{@const isExpanded = expandedChangeCategoryId === row.category.id}
 					{@const pct = totalMonthlyIncome > 0 ? Math.round((row.activeAmount / totalMonthlyIncome) * 100) : null}
+					{@const scheduledEventAmount = getCategoryEventAmountForMonth(row.category, selectedYear, selectedMonth)}
 
 					<div class="category-item" class:expanded={isExpanded}>
 						<div class="category-row">
@@ -920,17 +1015,15 @@
 								<input
 									class="amount-input"
 									type="number"
-									bind:value={row.category.baseAmount}
-									on:change={() => (categories = [...categories])}
+									value={row.activeAmount}
+									on:change={(e) => updateCategoryAmountForSelectedMonth(row.category.id, Number(e.currentTarget.value))}
 									aria-label="Base amount for {row.category.name}"
 								/>
 							</div>
-							{#if row.activeAmount !== row.category.baseAmount}
+							{#if scheduledEventAmount > 0}
 								<div class="category-override">
-									→ {formatAsCurrency(row.activeAmount)} this month
+									Includes scheduled payment: +{formatAsCurrency(scheduledEventAmount)}
 								</div>
-							{:else}
-								<div class="category-override placeholder"></div>
 							{/if}
 							<div class="category-actions">
 								<button
@@ -976,7 +1069,46 @@
 									</table>
 								{/if}
 
+								{#if (row.category.events ?? []).length > 0}
+									<table class="changes-table spaced-top">
+										<thead>
+											<tr>
+												<th>Type</th>
+												<th>When</th>
+												<th>Amount</th>
+												<th></th>
+											</tr>
+										</thead>
+										<tbody>
+											{#each row.category.events as evt}
+												<tr>
+													<td>{evt.kind === 'yearly' ? 'Yearly' : 'One-time'}</td>
+													<td>
+														{monthNames[evt.month]} {evt.day}{#if evt.kind === 'one-time'} {evt.year}{/if}
+														{#if evt.label}
+															<div class="event-label">{evt.label}</div>
+														{/if}
+													</td>
+													<td>{formatAsCurrency(evt.amount)}</td>
+													<td>
+														<button class="btn-icon danger small" on:click={() => removeCategoryEvent(row.category.id, evt.id)}>✕</button>
+													</td>
+												</tr>
+											{/each}
+										</tbody>
+									</table>
+								{/if}
+
 								<div class="change-form">
+									<label class="field">
+										<span>Schedule type</span>
+										<select bind:value={changeMode}>
+											<option value="monthly">Monthly amount change</option>
+											<option value="yearly">Yearly payment</option>
+											<option value="one-time">One-time payment</option>
+										</select>
+									</label>
+									{#if changeMode === 'monthly'}
 									<label class="field">
 										<span>From</span>
 										<div class="field-row">
@@ -988,8 +1120,28 @@
 											<input type="number" bind:value={changeEffectiveYear} min="2000" max="2100" class="year-input" />
 										</div>
 									</label>
+									{:else}
+										<label class="field">
+											<span>When</span>
+											<div class="field-row">
+												<select bind:value={eventMonth}>
+													{#each monthNames as name, i}
+														<option value={i}>{name}</option>
+													{/each}
+												</select>
+												<input type="number" bind:value={eventDay} min="1" max="31" class="year-input" />
+												{#if changeMode === 'one-time'}
+													<input type="number" bind:value={eventYear} min="2000" max="2100" class="year-input" />
+												{/if}
+											</div>
+										</label>
+										<label class="field">
+											<span>Label (optional)</span>
+											<input type="text" bind:value={eventLabel} placeholder="e.g. Auto insurance" />
+										</label>
+									{/if}
 									<label class="field">
-										<span>New amount ($)</span>
+										<span>{changeMode === 'monthly' ? 'New amount ($)' : 'Payment amount ($)'}</span>
 										<input type="number" bind:value={changeAmount} placeholder="Amount" />
 									</label>
 									<button class="btn-primary" on:click={addScheduledChange}>Add change</button>
@@ -1570,7 +1722,6 @@
 		white-space: nowrap;
 		text-align: left;
 	}
-	.category-override.placeholder {}
 
 	.category-actions {
 		display: flex;
@@ -1616,6 +1767,14 @@
 		border-collapse: collapse;
 		font-size: 0.88rem;
 		margin-bottom: 0.75rem;
+	}
+
+	.changes-table.spaced-top { margin-top: 0.6rem; }
+
+	.event-label {
+		font-size: 0.72rem;
+		color: #6b7280;
+		margin-top: 0.1rem;
 	}
 
 	.changes-table th,
