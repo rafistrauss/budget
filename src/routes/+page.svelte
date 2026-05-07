@@ -26,7 +26,7 @@
 	 */
 
 	/**
-	 * @typedef {{ id: string; amount: number; kind: 'yearly' | 'one-time'; month: number; day: number; year?: number; label?: string }} CategoryEvent
+	 * @typedef {{ id: string; amount: number; kind: 'yearly' | 'one-time'; month: number; day: number; year?: number; label?: string; mode?: 'lump-sum' | 'amortized' }} CategoryEvent
 	 */
 
 	/**
@@ -95,6 +95,10 @@
 
 	let newCategoryName = '';
 	let newCategoryAmount = 0;
+	/** @type {'monthly' | 'yearly'} */
+	let newCategoryCadence = 'monthly';
+	let newCategoryDueMonth = selectedMonth;
+	let newCategoryDueDay = 1;
 
 	// Inline-add state
 	let addingCategory = false;
@@ -111,6 +115,8 @@
 	let eventMonth = selectedMonth;
 	let eventDay = 1;
 	let eventYear = selectedYear;
+	/** @type {'lump-sum' | 'amortized'} */
+	let yearlyProjectionView = 'lump-sum';
 
 	/** @type {{ category: BudgetCategory; activeAmount: number; color: string }[]} */
 	let monthlyRows = [];
@@ -181,6 +187,7 @@
 						kind: isOneTime ? /** @type {'one-time'} */ ('one-time') : /** @type {'yearly'} */ ('yearly'),
 						month: Number.isFinite(parsedMonth) ? parsedMonth : (fromDate ? fromDate.getMonth() : now.getMonth()),
 						day: Number.isFinite(parsedDay) ? parsedDay : (fromDate ? fromDate.getDate() : 1),
+						...(isOneTime ? {} : { mode: /** @type {'lump-sum'} */ ('lump-sum') }),
 						...(isOneTime && fromDate ? { year: fromDate.getFullYear() } : {})
 					};
 				});
@@ -198,6 +205,7 @@
 				}
 			}
 		}
+		migrateScheduledExpensesCategory();
 	}
 
 	async function syncBudgetToFirebase() {
@@ -308,28 +316,34 @@
 			.filter((b) => b.year === selectedYear && b.month === selectedMonth)
 			.reduce((acc, b) => acc + b.amount, 0);
 
-	$: monthlyRows = categories.map((category, i) => ({
-		category,
-		activeAmount: getAmountForMonth(category, selectedYear, selectedMonth),
-		color: CATEGORY_COLORS[i % CATEGORY_COLORS.length]
-	}));
+	$: {
+		yearlyProjectionView;
+		monthlyRows = categories.map((category, i) => ({
+			category,
+			activeAmount: getAmountForMonth(category, selectedYear, selectedMonth),
+			color: CATEGORY_COLORS[i % CATEGORY_COLORS.length]
+		}));
+	}
 
 	$: totalMonthlyBudget = monthlyRows.reduce((acc, row) => acc + row.activeAmount, 0);
 	$: monthlySavings = totalMonthlyIncome - totalMonthlyBudget;
 
 	// Annual savings: sum savings for each month of selectedYear
-	$: annualSavings = Array.from({ length: 12 }, (_, m) => {
-		const income =
-			incomeSources.reduce((acc, src) => acc + incomeForMonth(src, selectedYear, m), 0) +
-			bonuses
-				.filter((b) => b.year === selectedYear && b.month === m)
-				.reduce((acc, b) => acc + b.amount, 0);
-		const spent = categories.reduce(
-			(acc, cat) => acc + getAmountForMonth(cat, selectedYear, m),
-			0
-		);
-		return income - spent;
-	}).reduce((a, b) => a + b, 0);
+	$: {
+		yearlyProjectionView;
+		annualSavings = Array.from({ length: 12 }, (_, m) => {
+			const income =
+				incomeSources.reduce((acc, src) => acc + incomeForMonth(src, selectedYear, m), 0) +
+				bonuses
+					.filter((b) => b.year === selectedYear && b.month === m)
+					.reduce((acc, b) => acc + b.amount, 0);
+			const spent = categories.reduce(
+				(acc, cat) => acc + getAmountForMonth(cat, selectedYear, m),
+				0
+			);
+			return income - spent;
+		}).reduce((a, b) => a + b, 0);
+	}
 
 	/** @param {number} val */
 	function savingsClass(val) {
@@ -463,13 +477,26 @@
 		if (!name) return;
 
 		const id = makeCategoryId(name);
+		const numericAmount = Number(newCategoryAmount) || 0;
+		const initialEvents = newCategoryCadence === 'yearly'
+			? [{
+				id: `event-${Date.now()}`,
+				amount: numericAmount,
+				kind: /** @type {'yearly'} */ ('yearly'),
+				month: Number(newCategoryDueMonth),
+				day: Number(newCategoryDueDay)
+			}]
+			: [];
 		categories = [
 			...categories,
-			{ id, name, baseAmount: Number(newCategoryAmount) || 0, changes: [], events: [] }
+			{ id, name, baseAmount: newCategoryCadence === 'monthly' ? numericAmount : 0, changes: [], events: initialEvents }
 		];
 
 		newCategoryName = '';
 		newCategoryAmount = 0;
+		newCategoryCadence = 'monthly';
+		newCategoryDueMonth = selectedMonth;
+		newCategoryDueDay = 1;
 		addingCategory = false;
 	}
 
@@ -503,6 +530,10 @@
 	function addScheduledChange() {
 		if (!expandedChangeCategoryId) return;
 		if (changeMode !== 'monthly') {
+			let targetCategoryId = expandedChangeCategoryId;
+			if (expandedChangeCategoryId === 'scheduled-expenses' && eventLabel.trim()) {
+				targetCategoryId = ensureCategoryByName(eventLabel.trim());
+			}
 			const nextEvent = {
 				id: `event-${Date.now()}`,
 				amount: Number(changeAmount) || 0,
@@ -513,9 +544,12 @@
 				...(eventLabel.trim() ? { label: eventLabel.trim() } : {})
 			};
 			categories = categories.map((category) => {
-				if (category.id !== expandedChangeCategoryId) return category;
+				if (category.id !== targetCategoryId) return category;
 				return { ...category, events: [...(category.events ?? []), nextEvent] };
 			});
+			if (expandedChangeCategoryId === 'scheduled-expenses') {
+				migrateScheduledExpensesCategory();
+			}
 			return;
 		}
 
@@ -593,29 +627,45 @@
 	 * @param {BudgetCategory} category
 	 * @param {number} year
 	 * @param {number} month
+	 * @param {'lump-sum' | 'amortized'} [projectionView]
 	 */
-	function getAmountForMonth(category, year, month) {
+	function getAmountForMonth(category, year, month, projectionView = yearlyProjectionView) {
 		let amount = Number(category.baseAmount) || 0;
 		for (const change of category.changes) {
 			if (compareYearMonth(change.effectiveYear, change.effectiveMonth, year, month) <= 0) {
 				amount = Number(change.amount) || 0;
 			}
 		}
-		return amount + getCategoryEventAmountForMonth(category, year, month);
+		return amount + getCategoryEventAmountForMonth(category, year, month, projectionView);
 	}
 
 	/**
 	 * @param {BudgetCategory} category
 	 * @param {number} year
 	 * @param {number} month
+	 * @param {'lump-sum' | 'amortized'} [projectionView]
 	 */
-	function getCategoryEventAmountForMonth(category, year, month) {
+	function getCategoryEventAmountForMonth(category, year, month, projectionView = yearlyProjectionView) {
 		return (category.events ?? []).reduce((acc, evt) => {
 			if (evt.kind === 'yearly') {
-				return evt.month === month ? acc + (Number(evt.amount) || 0) : acc;
+				const yearlyAmount = Number(evt.amount) || 0;
+				if (projectionView === 'amortized') {
+					return acc + yearlyAmount / 12;
+				}
+				return evt.month === month ? acc + yearlyAmount : acc;
 			}
 			return evt.month === month && evt.year === year ? acc + (Number(evt.amount) || 0) : acc;
 		}, 0);
+	}
+
+	/** @param {BudgetCategory} category */
+	function hasYearlyEvents(category) {
+		return (category.events ?? []).some((evt) => evt.kind === 'yearly' && (Number(evt.amount) || 0) !== 0);
+	}
+
+	/** @param {BudgetCategory} category */
+	function isProjectedCategory(category) {
+		return yearlyProjectionView === 'amortized' && hasYearlyEvents(category);
 	}
 
 	/**
@@ -674,13 +724,14 @@
 				if (Array.isArray(candidate.events)) {
 					for (const event of candidate.events) {
 						if (!event || typeof event !== 'object') continue;
-						const p = /** @type {{ id?: unknown; amount?: unknown; kind?: unknown; month?: unknown; day?: unknown; year?: unknown; label?: unknown }} */ (event);
+						const p = /** @type {{ id?: unknown; amount?: unknown; kind?: unknown; month?: unknown; day?: unknown; year?: unknown; label?: unknown; mode?: unknown }} */ (event);
 						events.push({
 							id: typeof p.id === 'string' && p.id ? p.id : `event-${Date.now()}-${events.length}`,
 							amount: Number(p.amount) || 0,
 							kind: p.kind === 'one-time' ? 'one-time' : 'yearly',
 							month: Number(p.month) || 0,
 							day: Number(p.day) || 1,
+							...(p.kind === 'one-time' ? {} : { mode: p.mode === 'amortized' ? 'amortized' : 'lump-sum' }),
 							...(p.kind === 'one-time' ? { year: Number(p.year) || now.getFullYear() } : {}),
 							...(typeof p.label === 'string' && p.label.trim() ? { label: p.label.trim() } : {})
 						});
@@ -690,6 +741,68 @@
 				return { id, name, baseAmount: Number(candidate.baseAmount) || 0, changes, events };
 			})
 			.filter(Boolean));
+	}
+
+	/**
+	 * @param {string} name
+	 * @param {BudgetCategory[]} list
+	 * @returns {string}
+	 */
+	function makeCategoryIdFromList(name, list) {
+		const slug = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+		const baseId = slug || 'category';
+		let nextId = baseId;
+		let suffix = 2;
+		while (list.some((c) => c.id === nextId)) {
+			nextId = `${baseId}-${suffix}`;
+			suffix += 1;
+		}
+		return nextId;
+	}
+
+	/**
+	 * Ensure a category exists for the given category name and return its id.
+	 * @param {string} name
+	 * @returns {string}
+	 */
+	function ensureCategoryByName(name) {
+		const normalizedName = name.trim();
+		const existing = categories.find((c) => c.name.toLowerCase() === normalizedName.toLowerCase());
+		if (existing) return existing.id;
+		const id = makeCategoryIdFromList(normalizedName, categories);
+		categories = [...categories, { id, name: normalizedName, baseAmount: 0, changes: [], events: [] }];
+		return id;
+	}
+
+	/**
+	 * Split labeled events out of the synthetic Scheduled Expenses category into
+	 * their own categories, preserving unlabeled items in Scheduled Expenses.
+	 */
+	function migrateScheduledExpensesCategory() {
+		const scheduled = categories.find((c) => c.id === 'scheduled-expenses');
+		if (!scheduled) return;
+
+		const labeledEvents = (scheduled.events ?? []).filter((evt) => Boolean(evt.label && evt.label.trim()));
+		if (labeledEvents.length === 0) return;
+
+		for (const evt of labeledEvents) {
+			const targetId = ensureCategoryByName(evt.label ?? 'Scheduled Expense');
+			categories = categories.map((c) => {
+				if (c.id !== targetId) return c;
+				return {
+					...c,
+					events: [
+						...(c.events ?? []),
+						{ ...evt, label: undefined }
+					]
+				};
+			});
+		}
+
+		const remainingEvents = (scheduled.events ?? []).filter((evt) => !(evt.label && evt.label.trim()));
+		categories = categories
+			.map((c) => (c.id === 'scheduled-expenses' ? { ...c, events: remainingEvents } : c))
+			.filter((c) => c.id !== 'scheduled-expenses' || c.baseAmount !== 0 || c.changes.length > 0 || c.events.length > 0);
 	}
 </script>
 
@@ -971,9 +1084,18 @@
 		<section class="categories-section">
 			<div class="section-header">
 				<h2>Spending Categories</h2>
-				<button class="btn-add" on:click={() => (addingCategory = !addingCategory)}>
-					{addingCategory ? '✕ Cancel' : '+ Add Category'}
-				</button>
+				<div class="section-actions">
+					<label class="projection-view">
+						<span>Yearly Payments View</span>
+						<select bind:value={yearlyProjectionView}>
+							<option value="lump-sum">Lump Sum</option>
+							<option value="amortized">Amortized</option>
+						</select>
+					</label>
+					<button class="btn-add" on:click={() => (addingCategory = !addingCategory)}>
+						{addingCategory ? '✕ Cancel' : '+ Add Category'}
+					</button>
+				</div>
 			</div>
 
 			{#if addingCategory}
@@ -985,13 +1107,25 @@
 						class="input"
 						on:keydown={(e) => e.key === 'Enter' && addCategory()}
 					/>
+					<select class="input" bind:value={newCategoryCadence}>
+						<option value="monthly">Monthly</option>
+						<option value="yearly">Yearly</option>
+					</select>
 					<input
 						type="number"
 						bind:value={newCategoryAmount}
-						placeholder="Monthly amount"
+						placeholder={newCategoryCadence === 'yearly' ? 'Yearly amount' : 'Monthly amount'}
 						class="input"
 						on:keydown={(e) => e.key === 'Enter' && addCategory()}
 					/>
+					{#if newCategoryCadence === 'yearly'}
+						<select class="input" bind:value={newCategoryDueMonth}>
+							{#each monthNames as name, i}
+								<option value={i}>{name}</option>
+							{/each}
+						</select>
+						<input class="input due-day-input" type="number" bind:value={newCategoryDueDay} min="1" max="31" placeholder="Day" />
+					{/if}
 					<button class="btn-primary" on:click={addCategory}>Add</button>
 				</div>
 			{/if}
@@ -1000,7 +1134,8 @@
 				{#each monthlyRows as row (row.category.id)}
 					{@const isExpanded = expandedChangeCategoryId === row.category.id}
 					{@const pct = totalMonthlyIncome > 0 ? Math.round((row.activeAmount / totalMonthlyIncome) * 100) : null}
-					{@const scheduledEventAmount = getCategoryEventAmountForMonth(row.category, selectedYear, selectedMonth)}
+					{@const scheduledEventAmount = getCategoryEventAmountForMonth(row.category, selectedYear, selectedMonth, yearlyProjectionView)}
+					{@const projectedRow = isProjectedCategory(row.category)}
 
 					<div class="category-item" class:expanded={isExpanded}>
 						<div class="category-row">
@@ -1016,15 +1151,11 @@
 									class="amount-input"
 									type="number"
 									value={row.activeAmount}
+									disabled={projectedRow}
 									on:change={(e) => updateCategoryAmountForSelectedMonth(row.category.id, Number(e.currentTarget.value))}
-									aria-label="Base amount for {row.category.name}"
+									aria-label="Amount for {row.category.name}"
 								/>
 							</div>
-							{#if scheduledEventAmount > 0}
-								<div class="category-override">
-									Includes scheduled payment: +{formatAsCurrency(scheduledEventAmount)}
-								</div>
-							{/if}
 							<div class="category-actions">
 								<button
 									class="btn-icon"
@@ -1041,6 +1172,12 @@
 								>✕</button>
 							</div>
 						</div>
+
+						{#if scheduledEventAmount > 0}
+							<div class="category-note" class:projected-note={yearlyProjectionView === 'amortized'}>
+								{yearlyProjectionView === 'amortized' ? 'Projected set-aside*' : 'Scheduled payment'}: +{formatAsCurrency(scheduledEventAmount)}
+							</div>
+						{/if}
 
 						{#if isExpanded}
 							<div class="changes-panel">
@@ -1161,46 +1298,41 @@
 					<thead>
 						<tr>
 							<th>Month</th>
-							{#each categories as cat}
-								<th>{cat.name}</th>
-							{/each}
 							<th>Total Spending</th>
 							{#if totalMonthlyIncome > 0}
 								<th>Income</th>
 								<th>Savings</th>
 							{/if}
+							{#each categories as cat}
+								{@const projectedHeader = isProjectedCategory(cat)}
+								<th class:projected-cell={projectedHeader}>{cat.name}{#if projectedHeader}<span class="projection-marker">*</span>{/if}</th>
+							{/each}
 						</tr>
 					</thead>
 					<tbody>
 						{#each monthNames as name, m}
-							{@const spent = categories.reduce((acc, cat) => acc + getAmountForMonth(cat, selectedYear, m), 0)}
+							{@const spent = categories.reduce((acc, cat) => acc + getAmountForMonth(cat, selectedYear, m, yearlyProjectionView), 0)}
 							{@const rowIncome = incomeSources.reduce((acc, src) => acc + incomeForMonth(src, selectedYear, m), 0) + bonuses.filter((b) => b.year === selectedYear && b.month === m).reduce((acc, b) => acc + b.amount, 0)}
 							{@const savings = rowIncome - spent}
 							<tr class:current-month={m === selectedMonth && selectedYear === now.getFullYear()}>
 								<td class="month-cell">{name}</td>
-								{#each categories as cat}
-									<td>{formatAsCurrency(getAmountForMonth(cat, selectedYear, m))}</td>
-								{/each}
 								<td class="total-cell">{formatAsCurrency(spent)}</td>
 								{#if totalMonthlyIncome > 0}
 									<td class="income-cell">{formatAsCurrency(rowIncome)}</td>
 									<td class="savings-cell {savingsClass(savings)}">{formatAsCurrency(savings)}</td>
 								{/if}
+								{#each categories as cat}
+									{@const projectedCell = isProjectedCategory(cat)}
+									<td class:projected-cell={projectedCell}>{formatAsCurrency(getAmountForMonth(cat, selectedYear, m, yearlyProjectionView))}{#if projectedCell}<span class="projection-marker">*</span>{/if}</td>
+								{/each}
 							</tr>
 						{/each}
 					</tbody>
 					<tfoot>
 						<tr>
 							<td><strong>Year Total</strong></td>
-							{#each categories as cat}
-								<td>
-									{formatAsCurrency(
-										Array.from({ length: 12 }, (_, m) => getAmountForMonth(cat, selectedYear, m)).reduce((a, b) => a + b, 0)
-									)}
-								</td>
-							{/each}
 							<td class="total-cell">
-								<strong>{formatAsCurrency(Array.from({ length: 12 }, (_, m) => categories.reduce((acc, cat) => acc + getAmountForMonth(cat, selectedYear, m), 0)).reduce((a, b) => a + b, 0))}</strong>
+								<strong>{formatAsCurrency(Array.from({ length: 12 }, (_, m) => categories.reduce((acc, cat) => acc + getAmountForMonth(cat, selectedYear, m, yearlyProjectionView), 0)).reduce((a, b) => a + b, 0))}</strong>
 							</td>
 							{#if totalMonthlyIncome > 0}
 								<td class="income-cell">
@@ -1208,9 +1340,19 @@
 								</td>
 								<td class="savings-cell {savingsClass(annualSavings)}"><strong>{formatAsCurrency(annualSavings)}</strong></td>
 							{/if}
+							{#each categories as cat}
+								<td>
+									{formatAsCurrency(
+										Array.from({ length: 12 }, (_, m) => getAmountForMonth(cat, selectedYear, m, yearlyProjectionView)).reduce((a, b) => a + b, 0)
+									)}
+								</td>
+							{/each}
 						</tr>
 					</tfoot>
 				</table>
+				{#if yearlyProjectionView === 'amortized'}
+					<div class="projection-footnote">* Projected amortized yearly set-aside (planning view). Actual payment still occurs on due date.</div>
+				{/if}
 			</div>
 		</section>
 
@@ -1607,6 +1749,27 @@
 		margin-bottom: 0.75rem;
 	}
 
+	.section-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.65rem;
+	}
+
+	.projection-view {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: 0.85rem;
+		color: #444;
+	}
+
+	.projection-view select {
+		padding: 0.2rem 0.35rem;
+		border: 1px solid #c8cfdb;
+		border-radius: 6px;
+		font-size: 0.82rem;
+	}
+
 	.section-header h2 {
 		margin: 0;
 		font-size: 1rem;
@@ -1627,6 +1790,7 @@
 
 	.add-category-row {
 		display: flex;
+		flex-wrap: wrap;
 		gap: 0.5rem;
 		margin-bottom: 0.75rem;
 		padding: 0.75rem;
@@ -1635,12 +1799,18 @@
 	}
 
 	.input, .add-category-row input {
-		flex: 1;
+		flex: 1 1 150px;
+		min-width: 120px;
 		padding: 0.5rem 0.7rem;
 		border: 1px solid #d0d5e0;
 		border-radius: 8px;
 		font-size: 0.9rem;
 		background: #fff;
+	}
+
+	.due-day-input {
+		flex: 0 0 88px;
+		min-width: 88px;
 	}
 
 	.btn-primary {
@@ -1671,7 +1841,7 @@
 
 	.category-row {
 		display: grid;
-		grid-template-columns: 5px 1fr 3.5rem 130px 140px auto;
+		grid-template-columns: 5px minmax(120px, 1fr) 3.5rem 130px auto;
 		align-items: center;
 		gap: 0.75rem;
 		padding: 0.65rem 0.9rem 0.65rem 0;
@@ -1716,11 +1886,16 @@
 	}
 	.amount-input:focus { outline: 2px solid #4f86c6; border-color: transparent; }
 
-	.category-override {
+	.category-note {
+		padding: 0 0.9rem 0.45rem 0;
 		font-size: 0.8rem;
 		color: #e07b54;
-		white-space: nowrap;
-		text-align: left;
+		text-align: right;
+		line-height: 1.2;
+	}
+
+	.category-note.projected-note {
+		font-style: italic;
 	}
 
 	.category-actions {
@@ -1873,12 +2048,28 @@
 	.savings-cell.positive { color: #2e8b57; font-weight: 600; }
 	.savings-cell.negative { color: #c0392b; font-weight: 600; }
 	.income-cell { color: #4f86c6; font-weight: 500; }
+	.projected-cell {
+		font-style: italic;
+		color: #7b5b2a;
+	}
+	.projection-marker {
+		margin-left: 0.15rem;
+		font-size: 0.8em;
+		font-weight: 700;
+	}
+	.projection-footnote {
+		margin-top: 0.45rem;
+		font-size: 0.8rem;
+		color: #6b7280;
+		font-style: italic;
+	}
 
 	/* ── Responsive ── */
 	@media (max-width: 900px) {
 		.main { padding: 1rem; }
 		.summary-row { grid-template-columns: repeat(2, 1fr); }
-		.category-override { display: none; }
+		.section-actions { flex-wrap: wrap; justify-content: flex-end; }
+		.projection-view { width: 100%; justify-content: flex-end; }
 		.category-row { grid-template-columns: 5px 1fr 3.5rem 130px auto; }
 	}
 
