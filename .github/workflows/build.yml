@@ -136,7 +136,7 @@ jobs:
             const previewSection = [
               '<!-- pr-preview-url-start -->',
               '## Preview Environment',
-              `- ${process.env.PREVIEW_URL}`,
+              `- Preview URL: ${process.env.PREVIEW_URL}`,
               '<!-- pr-preview-url-end -->'
             ].join('\n');
 
