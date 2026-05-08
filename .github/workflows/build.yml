@@ -153,9 +153,14 @@ jobs:
             const markerPattern =
               /<!-- pr-preview-url-start -->[\s\S]*?<!-- pr-preview-url-end -->/;
 
-            const updatedBody = markerPattern.test(body)
-              ? body.replace(markerPattern, previewSection)
-              : `${body.trimEnd()}${body.trim().length ? '\n\n' : ''}${previewSection}`;
+            let updatedBody;
+            if (markerPattern.test(body)) {
+              updatedBody = body.replace(markerPattern, previewSection);
+            } else if (body.trim().length > 0) {
+              updatedBody = `${body.trimEnd()}\n\n${previewSection}`;
+            } else {
+              updatedBody = previewSection;
+            }
 
             if (updatedBody !== body) {
               await github.rest.pulls.update({
