@@ -1,6 +1,7 @@
 permissions:
   contents: write
   pages: write
+  pull-requests: write
 
 on:
   push:
@@ -126,6 +127,44 @@ jobs:
 
           git commit -m "Deploy preview for PR #${{ github.event.pull_request.number }}"
           git push origin HEAD:gh-pages
+      - name: Update pull request description with preview URL
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pr-preview/pr-${{ github.event.pull_request.number }}/
+        with:
+          script: |
+            const previewSection = [
+              '<!-- pr-preview-url-start -->',
+              '## Preview Environment',
+              `- ${process.env.PREVIEW_URL}`,
+              '<!-- pr-preview-url-end -->'
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number
+            });
+
+            const body = pullRequest.body ?? '';
+            const markerPattern =
+              /<!-- pr-preview-url-start -->[\s\S]*?<!-- pr-preview-url-end -->/;
+
+            const updatedBody = markerPattern.test(body)
+              ? body.replace(markerPattern, previewSection)
+              : `${body.trimEnd()}${body.trim().length ? '\n\n' : ''}${previewSection}`;
+
+            if (updatedBody !== body) {
+              await github.rest.pulls.update({
+                owner,
+                repo,
+                pull_number,
+                body: updatedBody
+              });
+            }
 
   Remove-PR-Preview:
     if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
