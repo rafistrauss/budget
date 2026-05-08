@@ -46,8 +46,8 @@ jobs:
       - name: Deploy
         run: |
           set -euo pipefail
-          mkdir -p /tmp/site
-          cp -R build/. /tmp/site/
+          SITE_DIR="$(mktemp -d)"
+          cp -R build/. "${SITE_DIR}/"
 
           if git ls-remote --exit-code --heads origin gh-pages; then
             git fetch origin gh-pages:gh-pages
@@ -62,7 +62,7 @@ jobs:
 
           mkdir -p pr-preview
           find . -mindepth 1 -maxdepth 1 ! -name .git ! -name pr-preview -exec rm -rf {} +
-          rsync -a /tmp/site/ ./
+          rsync -a "${SITE_DIR}/" ./
           touch .nojekyll
 
           git add -A
@@ -99,22 +99,22 @@ jobs:
           PREVIEW_DIR: pr-preview/pr-${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          mkdir -p /tmp/site
-          cp -R build/. /tmp/site/
+          SITE_DIR="$(mktemp -d)"
+          cp -R build/. "${SITE_DIR}/"
 
-          if ! git ls-remote --exit-code --heads origin gh-pages; then
-            echo "gh-pages branch does not exist yet."
-            exit 1
+          if git ls-remote --exit-code --heads origin gh-pages; then
+            git fetch origin gh-pages:gh-pages
+            git switch gh-pages
+          else
+            git switch --orphan gh-pages
+            git rm -rf . >/dev/null 2>&1 || true
           fi
-
-          git fetch origin gh-pages:gh-pages
-          git switch gh-pages
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           rm -rf "${PREVIEW_DIR}"
           mkdir -p "${PREVIEW_DIR}"
-          rsync -a /tmp/site/ "${PREVIEW_DIR}/"
+          rsync -a "${SITE_DIR}/" "${PREVIEW_DIR}/"
           touch .nojekyll
 
           git add -A
