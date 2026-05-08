@@ -9,4 +9,7 @@
 
 </div>
 
-TBD
+Deployments:
+
+- Production: `https://rafistrauss.github.io/budget/`
+- Pull request previews: `https://rafistrauss.github.io/budget/pr-preview/pr-<number>/`
