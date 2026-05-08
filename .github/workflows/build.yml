@@ -1,6 +1,7 @@
 permissions:
   contents: write
   pages: write
+  pull-requests: write
 
 on:
   push:
@@ -12,12 +13,28 @@ on:
       - released
       - created
       - published
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - closed
+
+concurrency:
+  group: deploy-gh-pages
+  cancel-in-progress: true
 
 jobs:
   Deploy-Github-Pages:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
@@ -25,8 +42,169 @@ jobs:
         with:
           run_install: true
       - run: pnpm run build
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}
       - name: Deploy
-        uses: peaceiris/actions-gh-pages@v4
+        run: |
+          set -euo pipefail
+          SITE_DIR="$(mktemp -d)"
+          cp -R build/. "${SITE_DIR}/"
+
+          if git ls-remote --exit-code --heads origin gh-pages; then
+            git fetch origin gh-pages:gh-pages
+            git switch gh-pages
+          else
+            git switch --orphan gh-pages
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          mkdir -p pr-preview
+          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name pr-preview -exec rm -rf {} +
+          rsync -a "${SITE_DIR}/" ./
+          touch .nojekyll
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No production site changes to deploy."
+            exit 0
+          fi
+
+          git commit -m "Deploy site for $GITHUB_SHA"
+          git push origin HEAD:gh-pages
+
+  Deploy-PR-Preview:
+    if: github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment:
+      name: pr-${{ github.event.pull_request.number }}
+      url: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pr-preview/pr-${{ github.event.pull_request.number }}/
+    steps:
+      - uses: actions/checkout@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./build
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - uses: pnpm/action-setup@v4.0.0
+        with:
+          run_install: true
+      - run: pnpm run build
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/pr-preview/pr-${{ github.event.pull_request.number }}
+      - name: Deploy preview
+        env:
+          PREVIEW_DIR: pr-preview/pr-${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          SITE_DIR="$(mktemp -d)"
+          cp -R build/. "${SITE_DIR}/"
+
+          if git ls-remote --exit-code --heads origin gh-pages; then
+            git fetch origin gh-pages:gh-pages
+            git switch gh-pages
+          else
+            git switch --orphan gh-pages
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          rm -rf "${PREVIEW_DIR}"
+          mkdir -p "${PREVIEW_DIR}"
+          rsync -a "${SITE_DIR}/" "${PREVIEW_DIR}/"
+          touch .nojekyll
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No preview site changes to deploy."
+            exit 0
+          fi
+
+          git commit -m "Deploy preview for PR #${{ github.event.pull_request.number }}"
+          git push origin HEAD:gh-pages
+      - name: Update pull request description with preview URL
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pr-preview/pr-${{ github.event.pull_request.number }}/
+        with:
+          script: |
+            const previewSection = [
+              '<!-- pr-preview-url-start -->',
+              '## Preview Environment',
+              `- Preview URL: ${process.env.PREVIEW_URL}`,
+              '<!-- pr-preview-url-end -->'
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number
+            });
+
+            const body = pullRequest.body ?? '';
+            const markerPattern =
+              /<!-- pr-preview-url-start -->[\s\S]*?<!-- pr-preview-url-end -->/;
+
+            let updatedBody;
+            if (markerPattern.test(body)) {
+              updatedBody = body.replace(markerPattern, previewSection);
+            } else if (body.trim().length > 0) {
+              updatedBody = `${body.trimEnd()}\n\n${previewSection}`;
+            } else {
+              updatedBody = previewSection;
+            }
+
+            if (updatedBody !== body) {
+              await github.rest.pulls.update({
+                owner,
+                repo,
+                pull_number,
+                body: updatedBody
+              });
+            }
+
+  Remove-PR-Preview:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Remove preview
+        env:
+          PREVIEW_DIR: pr-preview/pr-${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          if ! git ls-remote --exit-code --heads origin gh-pages; then
+            echo "gh-pages branch does not exist; nothing to clean up."
+            exit 0
+          fi
+
+          git fetch origin gh-pages:gh-pages
+          git switch gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          rm -rf "${PREVIEW_DIR}"
+          if [ -d pr-preview ] && [ -z "$(ls -A pr-preview)" ]; then
+            rmdir pr-preview
+          fi
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No preview site changes to remove."
+            exit 0
+          fi
+
+          git commit -m "Remove preview for PR #${{ github.event.pull_request.number }}"
+          git push origin HEAD:gh-pages
