@@ -14,7 +14,9 @@
 		/** @type {"annual"|"monthly"|"fortnightly"}*/
 		interval,
 		/** @type {string}*/
-		currentState
+		currentState,
+		/** @type {string}*/
+		cityTaxLocation
 		;
 
 	let /** @type {number}*/
@@ -83,7 +85,9 @@
 	}
 </script>
 
-<h2 style="text-transform: capitalize;">{interval} Taxes - {currentState}</h2>
+<h2 style="text-transform: capitalize;">
+	{interval} Taxes - {currentState}{cityTaxLocation ? ` (City: ${cityTaxLocation})` : ''}
+</h2>
 
 <table style="border-collapse: collapse;">
 	<thead>

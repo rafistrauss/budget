@@ -34,7 +34,12 @@
 
 	
 	let currentState = 'New Jersey';
-	let currentYear = '2024';
+	let cityTaxLocation = '';
+	let currentYear = '2026';
+
+	$: if (currentState === 'New York' && !cityTaxLocation) {
+		cityTaxLocation = 'New York';
+	}
 
 	let interval = 'annual';
 
@@ -259,6 +264,7 @@
 				<option value="2023">2023</option>
 				<option value="2024">2024</option>
 				<option value="2025">2025</option>
+				<option value="2026">2026</option>
 			</select>
 
 			<br />
@@ -269,6 +275,13 @@
 				<option value="New York">New York (NY)</option>
 				<option value="New Jersey">New Jersey (NJ)</option>
 				<!-- Add options for other states if needed -->
+			</select>
+			<br />
+
+			<label for="cityTaxLocation">Work City Tax Location:</label>
+			<select id="cityTaxLocation" bind:value={cityTaxLocation}>
+				<option value="">None</option>
+				<option value="New York">New York City (NYC)</option>
 			</select>
 		</p>
 
@@ -327,6 +340,7 @@
 			<div>
 				<TaxesByState
 					{currentState}
+					{cityTaxLocation}
 					{currentYear}
 					health_care_fsa_contributions={[health_care_fsa_contribution_1, health_care_fsa_contribution_2]}
 					dependent_care_fsa_contributions={[dependent_care_fsa_contribution_1, dependent_care_fsa_contribution_2]}

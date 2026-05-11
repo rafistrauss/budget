@@ -10,9 +10,10 @@
 	} from '$lib';
 	import TaxesDisplay from './TaxesDisplay.svelte';
 
-	export let /** @type {'2023'|'2024'|'2025'} */
+	export let /** @type {'2023'|'2024'|'2025'|'2026'} */
 		currentYear = '2023',
 		currentState = 'New York',
+		cityTaxLocation = '',
 		/** @type {number[]} */
 		yearlySalaries = [],
 		/** @type {number[]} */
@@ -62,12 +63,15 @@
 	let annualTakeHomes = [];
 	/** @type {number[]} */
 	let taxableIncomes = [];
+	let effectiveCityTaxLocation = '';
 	/**
 	 * @type {{ rates: import("$lib").TaxRate[]; }}
 	 */
 	let taxRate;
 
 	$: {
+		effectiveCityTaxLocation =
+			cityTaxLocation || (currentState === 'New York' ? 'New York' : '');
 		taxRate = taxRatesFilingJointly[currentYear][currentState];
 
 		yearly401kContributions = yearlySalaries.map(
@@ -108,7 +112,7 @@
 			() => standardDeductions?.[currentYear]?.[filingStatus]?.federal ?? 0
 		);
 		cityStandardTaxDeductions = yearlySalaries.map(
-			() => standardDeductions?.[currentYear]?.[filingStatus]?.[currentState]?.city ?? 0
+			() => standardDeductions?.[currentYear]?.[filingStatus]?.[effectiveCityTaxLocation]?.city ?? 0
 		);
 
 		stateTaxAmounts = taxableIncomes.map((income, index) =>
@@ -124,7 +128,7 @@
 		cityTaxAmounts = taxableIncomes.map((income, index) =>
 			calculateTax(
 				income,
-				taxRatesFilingJointly_City[currentYear][currentState],
+				taxRatesFilingJointly_City[currentYear][effectiveCityTaxLocation],
 				cityStandardTaxDeductions[index]
 			)
 		);
@@ -161,6 +165,7 @@
 	medicareTaxAmount={medicareTaxAmounts[0] + medicareTaxAmounts[1]}
 	{interval}
 	{currentState}
+	cityTaxLocation={effectiveCityTaxLocation}
 />
 
 <p>
