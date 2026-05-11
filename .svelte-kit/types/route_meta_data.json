@@ -1,0 +1,13 @@
+{
+	"/": [
+		"src/routes/+layout.js",
+		"src/routes/+layout.js"
+	],
+	"/checking": [
+		"src/routes/checking/+page.js",
+		"src/routes/+layout.js"
+	],
+	"/take-home-pay": [
+		"src/routes/+layout.js"
+	]
+}
