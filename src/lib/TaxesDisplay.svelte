@@ -83,43 +83,134 @@
 				break;
 		}
 	}
+
+	$: rows = [
+		{ label: 'Federal', amount: displayFederalTaxAmount, color: '#4f86c6' },
+		{ label: currentState || 'State', amount: displayStateTaxAmount, color: '#e07b54' },
+		...(cityTaxLocation ? [{ label: `${cityTaxLocation} City`, amount: displayCityTaxAmount, color: '#c95f8a' }] : []),
+		{ label: 'Social Security', amount: displaySocialSecurityTaxAmount, color: '#5bb56a' },
+		{ label: 'Medicare', amount: displayMedicareTaxAmount, color: '#8b6bbf' },
+	];
 </script>
 
-<h2 style="text-transform: capitalize;">
-	{interval} Taxes - {currentState}{cityTaxLocation ? ` (City: ${cityTaxLocation})` : ''}
-</h2>
+<div class="tax-breakdown">
+	<div class="tax-rows">
+		{#each rows as row}
+			{@const pct = displayTotalTaxAmount > 0 ? (row.amount / displayTotalTaxAmount) * 100 : 0}
+			<div class="tax-row">
+				<div class="tax-row-top">
+					<span class="tax-dot" style="background:{row.color}"></span>
+					<span class="tax-label">{row.label}</span>
+					<span class="tax-amount">{formatAsCurrency(row.amount)}</span>
+					<span class="tax-pct">{pct.toFixed(1)}%</span>
+				</div>
+				<div class="tax-bar-track">
+					<div class="tax-bar-fill" style="width:{pct}%; background:{row.color};"></div>
+				</div>
+			</div>
+		{/each}
+	</div>
 
-<table style="border-collapse: collapse;">
-	<thead>
-		<tr>
-			<th>Tax</th>
-			<th>Amount</th>
-		</tr>
-	</thead>
-	<tbody>
-		<tr>
-			<td>Federal</td>
-			<td>{formatAsCurrency(displayFederalTaxAmount)}</td>
-		</tr>
-		<tr>
-			<td>State</td>
-			<td>{formatAsCurrency(displayStateTaxAmount)}</td>
-		</tr>
-		<tr>
-			<td>City</td>
-			<td>{formatAsCurrency(displayCityTaxAmount)}</td>
-		</tr>
-		<tr>
-			<td>Social Security</td>
-			<td>{formatAsCurrency(displaySocialSecurityTaxAmount)}</td>
-		</tr>
-		<tr>
-			<td>Medicare</td>
-			<td>{formatAsCurrency(displayMedicareTaxAmount)}</td>
-		</tr>
-		<tr>
-			<td style="border-top: 1px solid black; font-weight: bold;">Total</td>
-			<td style="border-top: 1px solid black; font-weight: bold;">{formatAsCurrency(displayTotalTaxAmount)}</td>
-		</tr></tbody
-	>
-</table>
+	<div class="tax-total-row">
+		<span class="tax-total-label">Total Tax</span>
+		<span class="tax-total-amount">{formatAsCurrency(displayTotalTaxAmount)}</span>
+	</div>
+</div>
+
+<style>
+	.tax-breakdown {
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+	}
+
+	.interval-label {
+		font-size: 0.72rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: #9ba3b5;
+		margin-bottom: 0.5rem;
+	}
+
+	.tax-rows {
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+	}
+
+	.tax-row {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+	}
+
+	.tax-row-top {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.tax-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.tax-label {
+		flex: 1;
+		font-size: 0.88rem;
+		color: #1a1d23;
+	}
+
+	.tax-amount {
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: #1a1d23;
+		min-width: 80px;
+		text-align: right;
+	}
+
+	.tax-pct {
+		font-size: 0.78rem;
+		color: #9ba3b5;
+		min-width: 40px;
+		text-align: right;
+	}
+
+	.tax-bar-track {
+		height: 4px;
+		background: #f0f2f7;
+		border-radius: 2px;
+		overflow: hidden;
+		margin-left: 17px;
+	}
+
+	.tax-bar-fill {
+		height: 100%;
+		border-radius: 2px;
+		transition: width 0.3s ease;
+	}
+
+	.tax-total-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-top: 0.75rem;
+		padding-top: 0.75rem;
+		border-top: 1px solid #e8eaf2;
+	}
+
+	.tax-total-label {
+		font-size: 0.88rem;
+		font-weight: 700;
+		color: #1a1d23;
+	}
+
+	.tax-total-amount {
+		font-size: 1.05rem;
+		font-weight: 700;
+		color: #1a1d23;
+	}
+</style>

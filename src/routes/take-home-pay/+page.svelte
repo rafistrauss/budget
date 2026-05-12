@@ -46,6 +46,7 @@
 
 	let hasLoaded = false;
 	let saveStatus = '';
+	let inputsExpanded = true;
 
 	let /** @type {number} */
 		yearlyBonus1,
@@ -247,23 +248,6 @@
 						<option value="New Jersey">New Jersey (NJ)</option>
 					</select>
 				</div>
-				<div class="field">
-					<span class="field-label">Interval</span>
-					<div class="radio-group">
-						<label class="radio-label">
-							<input type="radio" name="interval" value="annual" bind:group={interval} />
-							Annual
-						</label>
-						<label class="radio-label">
-							<input type="radio" name="interval" value="monthly" bind:group={interval} />
-							Monthly
-						</label>
-						<label class="radio-label">
-							<input type="radio" name="interval" value="fortnightly" bind:group={interval} />
-							Fortnightly
-						</label>
-					</div>
-				</div>
 			</div>
 		</section>
 
@@ -287,9 +271,11 @@
 
 		<!-- Salary inputs card -->
 		<section class="card">
-			<div class="section-header">
+			<button class="section-header collapsible-header" on:click={() => (inputsExpanded = !inputsExpanded)}>
 				<h2>Salary Inputs</h2>
-			</div>
+				<span class="chevron" class:open={inputsExpanded}>›</span>
+			</button>
+			{#if inputsExpanded}
 			<div class="persons-grid">
 				<!-- Person 1 -->
 				<div class="person-col">
@@ -384,12 +370,27 @@
 					</div>
 				</div>
 			</div>
+			{/if}
 		</section>
 
 		<!-- Tax breakdown card -->
 		<section class="card">
 			<div class="section-header">
 				<h2>Tax Breakdown</h2>
+				<div class="radio-group">
+					<label class="radio-label">
+						<input type="radio" name="interval" value="annual" bind:group={interval} />
+						Annual
+					</label>
+					<label class="radio-label">
+						<input type="radio" name="interval" value="monthly" bind:group={interval} />
+						Monthly
+					</label>
+					<label class="radio-label">
+						<input type="radio" name="interval" value="fortnightly" bind:group={interval} />
+						Fortnightly
+					</label>
+				</div>
 			</div>
 			<TaxesByState
 				{currentState}
@@ -652,6 +653,28 @@
 	.summary-sub {
 		font-size: 0.8rem;
 		color: #9ba3b5;
+	}
+
+	/* ── Collapsible ── */
+	.collapsible-header {
+		background: none;
+		border: none;
+		padding: 0;
+		width: 100%;
+		cursor: pointer;
+		margin-bottom: 0;
+	}
+	.collapsible-header:hover h2 { color: #4f86c6; }
+
+	.chevron {
+		font-size: 1.2rem;
+		color: #7a8099;
+		transition: transform 0.2s;
+		display: inline-block;
+		transform: rotate(90deg);
+	}
+	.chevron.open {
+		transform: rotate(-90deg);
 	}
 
 	/* ── Buttons ── */

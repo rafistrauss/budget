@@ -153,26 +153,154 @@
 	}
 </script>
 
-{#each yearlySalaries as _, index}
-	<h3>Income {index + 1}</h3>
-	Taxable income: {formatAsCurrency(taxableIncomes[index])}
-{/each}
+<!-- Take-home summary cards -->
+<div class="breakdown-header">
+	<h2 class="breakdown-title">Tax Breakdown</h2>
+	{#if effectiveCityTaxLocation}
+		<span class="breakdown-meta">{effectiveStateTaxLocation} · City: {effectiveCityTaxLocation}</span>
+	{:else}
+		<span class="breakdown-meta">{effectiveStateTaxLocation}</span>
+	{/if}
+</div>
 
+<div class="takehome-row">
+	<div class="takehome-card primary">
+		<span class="takehome-label">Monthly Take-Home</span>
+		<span class="takehome-amount">{formatAsCurrency(monthlyTakeHomes[0] + monthlyTakeHomes[1])}</span>
+	</div>
+	<div class="takehome-card">
+		<span class="takehome-label">Biweekly Take-Home</span>
+		<span class="takehome-amount">{formatAsCurrency(biweeklyTakeHomes[0] + biweeklyTakeHomes[1])}</span>
+	</div>
+	<div class="takehome-card">
+		<span class="takehome-label">Annual Take-Home</span>
+		<span class="takehome-amount">{formatAsCurrency(annualTakeHomes[0] + annualTakeHomes[1])}</span>
+	</div>
+</div>
+
+<!-- Per-person taxable income -->
+{#if yearlySalaries.filter((s) => s > 0).length > 0}
+	<div class="taxable-row">
+		{#each yearlySalaries as salary, index}
+			{#if salary > 0}
+				<div class="taxable-item">
+					<span class="taxable-label">Person {index + 1} Taxable Income</span>
+					<span class="taxable-value">{formatAsCurrency(taxableIncomes[index])}</span>
+				</div>
+			{/if}
+		{/each}
+	</div>
+{/if}
+
+<!-- Tax breakdown -->
 <TaxesDisplay
 	federalTaxAmount={federalTaxAmounts[0] + federalTaxAmounts[1]}
 	stateTaxAmount={stateTaxAmounts[0] + stateTaxAmounts[1]}
 	cityTaxAmount={cityTaxAmounts[0] + cityTaxAmounts[1]}
 	socialSecurityTaxAmount={socialSecurityTaxAmounts[0] + socialSecurityTaxAmounts[1]}
 	medicareTaxAmount={medicareTaxAmounts[0] + medicareTaxAmounts[1]}
+
 	{interval}
 	currentState={effectiveStateTaxLocation}
 	cityTaxLocation={effectiveCityTaxLocation}
 />
 
-<p>
-	Your monthly take-home pay: {formatAsCurrency(monthlyTakeHomes[0] + monthlyTakeHomes[1])}
-	<br />
-	Your biweekly take-home pay: {formatAsCurrency(biweeklyTakeHomes[0] + biweeklyTakeHomes[1])}
-	<br />
-	Your annual take-home pay: {formatAsCurrency(annualTakeHomes[0] + annualTakeHomes[1])}
-</p>
+<style>
+	.breakdown-header {
+		display: flex;
+		align-items: baseline;
+		gap: 0.75rem;
+		margin-bottom: 1rem;
+	}
+
+	.breakdown-title {
+		font-size: 1rem;
+		font-weight: 600;
+		color: #1a1d23;
+		margin: 0;
+	}
+
+	.breakdown-meta {
+		font-size: 0.8rem;
+		color: #7a8099;
+	}
+
+	.takehome-row {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.75rem;
+		margin-bottom: 1.25rem;
+	}
+
+	.takehome-card {
+		background: #f4f6fa;
+		border-radius: 10px;
+		padding: 0.85rem 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.takehome-card.primary {
+		background: #eef4ff;
+		border: 1px solid #c3d8f7;
+	}
+
+	.takehome-label {
+		font-size: 0.72rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: #7a8099;
+	}
+
+	.takehome-amount {
+		font-size: 1.3rem;
+		font-weight: 700;
+		color: #1a1d23;
+	}
+
+	.takehome-card.primary .takehome-amount {
+		color: #2c5fa8;
+	}
+
+	.taxable-row {
+		display: flex;
+		gap: 1.5rem;
+		margin-bottom: 1.25rem;
+		padding: 0.75rem 1rem;
+		background: #fafbfd;
+		border-radius: 8px;
+		border: 1px solid #e8eaf2;
+	}
+
+	.taxable-item {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+	}
+
+	.taxable-label {
+		font-size: 0.72rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: #9ba3b5;
+	}
+
+	.taxable-value {
+		font-size: 0.95rem;
+		font-weight: 600;
+		color: #1a1d23;
+	}
+
+	@media (max-width: 600px) {
+		.takehome-row {
+			grid-template-columns: 1fr;
+		}
+		.taxable-row {
+			flex-direction: column;
+			gap: 0.75rem;
+		}
+	}
+</style>
