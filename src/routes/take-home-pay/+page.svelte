@@ -193,307 +193,505 @@
 
 <div class="app">
 	<Nav />
-	<main>
-	<h1>Take-Home Pay Calculator</h1>
 
-	<section>
-		{#if currentUser}
-			<!-- content here -->
-			Signed in as {currentUser.email} <button on:click={() => auth.signOut()}>Sign out</button>
-		{:else}
-			<h2>Sign In</h2>
-			<div>
-				<form on:submit|preventDefault={signIn}>
-					<label for="email">Email:</label>
-					<input type="email" id="email" bind:value={email} autocomplete="email" />
-					<br />
-					<label for="password">Password:</label>
-					<input
-						type="password"
-						id="password"
-						bind:value={password}
-						autocomplete="current-password"
-					/>
-					<br />
-					<button type="submit">Sign In</button>
-				</form>
+	{#if !currentUser}
+		<div class="auth-bar">
+			<form class="auth-form" on:submit|preventDefault={signIn}>
+				<input type="email" bind:value={email} placeholder="Email" required autocomplete="email" />
+				<input type="password" bind:value={password} placeholder="Password" required autocomplete="current-password" />
+				<button type="submit" class="btn-secondary">Sign in to sync</button>
+			</form>
+		</div>
+	{:else}
+		<div class="auth-bar auth-bar--signed-in">
+			<span class="auth-email">{currentUser.email}</span>
+			<button class="btn-secondary" on:click={() => auth.signOut()}>Sign out</button>
+		</div>
+	{/if}
+
+	<main class="main">
+
+		<header class="page-header">
+			<h1>Take-Home Pay Calculator</h1>
+			<div class="header-actions">
+				<button class="btn-secondary" on:click={saveData}>Save</button>
+				{#if saveStatus}<span class="save-toast">{saveStatus}</span>{/if}
 			</div>
-		{/if}
+		</header>
 
-		<section>
-			<h2>Salary input</h2>
-			<div class="splitDisplay">
-				<div>
+		<!-- Settings card -->
+		<section class="card settings-card">
+			<div class="settings-grid">
+				<div class="field">
+					<span class="field-label">Tax Year</span>
+					<select bind:value={currentYear}>
+						<option value="">-- Select Year --</option>
+						<option value="2023">2023</option>
+						<option value="2024">2024</option>
+						<option value="2025">2025</option>
+						<option value="2026">2026</option>
+					</select>
+				</div>
+				<div class="field">
+					<span class="field-label">Residence State</span>
+					<select bind:value={currentState}>
+						<option value="">-- Select State --</option>
+						<option value="New York">New York (NY)</option>
+						<option value="New Jersey">New Jersey (NJ)</option>
+					</select>
+				</div>
+				<div class="field">
+					<span class="field-label">Work State</span>
+					<select bind:value={workState}>
+						<option value="New York">New York (NY)</option>
+						<option value="New Jersey">New Jersey (NJ)</option>
+					</select>
+				</div>
+				<div class="field">
+					<span class="field-label">Interval</span>
+					<div class="radio-group">
+						<label class="radio-label">
+							<input type="radio" name="interval" value="annual" bind:group={interval} />
+							Annual
+						</label>
+						<label class="radio-label">
+							<input type="radio" name="interval" value="monthly" bind:group={interval} />
+							Monthly
+						</label>
+						<label class="radio-label">
+							<input type="radio" name="interval" value="fortnightly" bind:group={interval} />
+							Fortnightly
+						</label>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<!-- Summary cards -->
+		<section class="summary-row">
+			<div class="summary-card">
+				<div class="summary-label">Gross Monthly Income</div>
+				<div class="summary-amount">{formatAsCurrency(yearlySalary1 / 12 + yearlySalary2 / 12)}</div>
+			</div>
+			<div class="summary-card">
+				<div class="summary-label">Person 1 Bonus</div>
+				<div class="summary-amount">{formatAsCurrency(yearlyBonus1)}</div>
+				<div class="summary-sub">/ year</div>
+			</div>
+			<div class="summary-card">
+				<div class="summary-label">Person 1 401k</div>
+				<div class="summary-amount">{formatAsCurrency(yearly401kContribution1)}</div>
+				<div class="summary-sub">/ year</div>
+			</div>
+		</section>
+
+		<!-- Salary inputs card -->
+		<section class="card">
+			<div class="section-header">
+				<h2>Salary Inputs</h2>
+			</div>
+			<div class="persons-grid">
+				<!-- Person 1 -->
+				<div class="person-col">
 					<h3>Person 1</h3>
-					<label for="yearlySalary1">Yearly Salary:</label>
-					<input type="number" id="yearlySalary1" bind:value={yearlySalary1} />
-					<br />
-					<label for="salaryIncreasePercentage1">Increase Salary by (%):</label>
-					<input type="number" id="salaryIncreasePercentage1" />
-					<button on:click={() => yearlySalary1 += yearlySalary1 * (document.getElementById('salaryIncreasePercentage1').value / 100)}>
-						Increase Salary
-					</button>
-					<br />
-
-					<label for="bonusPercentage1">Expected Bonus (%):</label>
-					<input type="number" id="bonusPercentage1" bind:value={bonusPercentage1} />
-
-					<br />
-					<br />
-					<label for="contributionPercentage1">401k Contribution (%):</label>
-					<input
-						type="number"
-						id="contributionPercentage1"
-						bind:value={_401kContributionPercentage1}
-					/>
-					<br />
-					<label for="healthCareContribution1">Healthcare FSA Contribution ($):</label>
-					<input
-						type="number"
-						id="healthCareContribution1"
-						bind:value={health_care_fsa_contribution_1}
-					/>
-					<br />
-					<label for="dependentCareContribution1">Dependent Care FSA Contribution ($):</label>
-					<input
-						type="number"
-						id="dependentCareContribution1"
-						bind:value={dependent_care_fsa_contribution_1}
-					/>
-					<br />
-					<br />
-					<label for="medicalDeduction1">Medical Deduction ($):</label>
-					<input type="number" id="medicalDeduction1" bind:value={annual_medical_deduction_1} />
-					<br />
-					<label for="dentalDeduction1">Dental Deduction ($):</label>
-					<input type="number" id="dentalDeduction1" bind:value={annual_dental_deduction_1} />
-					<br />
-					<label for="visionDeduction1">Vision Deduction ($):</label>
-					<input type="number" id="visionDeduction1" bind:value={annual_vision_deduction_1} />
-					<br />
+					<div class="field-group">
+						<div class="field">
+							<span class="field-label">Yearly Salary</span>
+							<input type="number" bind:value={yearlySalary1} />
+						</div>
+						<div class="field">
+							<span class="field-label">Increase Salary by (%)</span>
+							<div class="field-row">
+								<input type="number" id="salaryIncreasePercentage1" class="flex-input" />
+								<button class="btn-secondary btn-sm" on:click={() => yearlySalary1 += yearlySalary1 * (document.getElementById('salaryIncreasePercentage1').value / 100)}>Apply</button>
+							</div>
+						</div>
+						<div class="field">
+							<span class="field-label">Expected Bonus (%)</span>
+							<input type="number" bind:value={bonusPercentage1} />
+						</div>
+					</div>
+					<div class="field-group">
+						<div class="field">
+							<span class="field-label">401k Contribution (%)</span>
+							<input type="number" bind:value={_401kContributionPercentage1} />
+						</div>
+						<div class="field">
+							<span class="field-label">Healthcare FSA ($)</span>
+							<input type="number" bind:value={health_care_fsa_contribution_1} />
+						</div>
+						<div class="field">
+							<span class="field-label">Dependent Care FSA ($)</span>
+							<input type="number" bind:value={dependent_care_fsa_contribution_1} />
+						</div>
+					</div>
+					<div class="field-group">
+						<div class="field">
+							<span class="field-label">Medical Deduction ($)</span>
+							<input type="number" bind:value={annual_medical_deduction_1} />
+						</div>
+						<div class="field">
+							<span class="field-label">Dental Deduction ($)</span>
+							<input type="number" bind:value={annual_dental_deduction_1} />
+						</div>
+						<div class="field">
+							<span class="field-label">Vision Deduction ($)</span>
+							<input type="number" bind:value={annual_vision_deduction_1} />
+						</div>
+					</div>
 				</div>
-				<div>
+
+				<!-- Person 2 -->
+				<div class="person-col">
 					<h3>Person 2</h3>
-					<label for="yearlySalary2">Yearly Salary:</label>
-					<input type="number" id="yearlySalary2" bind:value={yearlySalary2} />
-					<br />
-
-					<label for="bonusPercentage2">Expected Bonus (%):</label>
-					<input
-						type="number"
-						id="bonusPercentage2"
-						bind:value={bonusPercentage2}
-					/>
-
-					<br />
-					<label for="contributionPercentage2">401k Contribution (%):</label>
-					<input
-						type="number"
-						id="contributionPercentage2"
-						bind:value={_401kContributionPercentage2}
-					/>
-					<br />
-					<label for="healthCareContribution2">Healthcare FSA Contribution ($):</label>
-					<input
-						type="number"
-						id="healthCareContribution2"
-						bind:value={health_care_fsa_contribution_2}
-					/>
-					<br />
-					<label for="dependentCareContribution2">Dependent Care FSA Contribution ($):</label>
-					<input
-						type="number"
-						id="dependentCareContribution2"
-						bind:value={dependent_care_fsa_contribution_2}
-					/>
-					<br />
-					<br />
-					<label for="medicalDeduction2">Medical Deduction ($):</label>
-					<input type="number" id="medicalDeduction2" bind:value={annual_medical_deduction_2} />
-					<br />
-					<label for="dentalDeduction2">Dental Deduction ($):</label>
-					<input type="number" id="dentalDeduction2" bind:value={annual_dental_deduction_2} />
-					<br />
-					<label for="visionDeduction2">Vision Deduction ($):</label>
-					<input type="number" id="visionDeduction2" bind:value={annual_vision_deduction_2} />
-					<br />
+					<div class="field-group">
+						<div class="field">
+							<span class="field-label">Yearly Salary</span>
+							<input type="number" bind:value={yearlySalary2} />
+						</div>
+						<div class="field">
+							<span class="field-label">Expected Bonus (%)</span>
+							<input type="number" bind:value={bonusPercentage2} />
+						</div>
+					</div>
+					<div class="field-group">
+						<div class="field">
+							<span class="field-label">401k Contribution (%)</span>
+							<input type="number" bind:value={_401kContributionPercentage2} />
+						</div>
+						<div class="field">
+							<span class="field-label">Healthcare FSA ($)</span>
+							<input type="number" bind:value={health_care_fsa_contribution_2} />
+						</div>
+						<div class="field">
+							<span class="field-label">Dependent Care FSA ($)</span>
+							<input type="number" bind:value={dependent_care_fsa_contribution_2} />
+						</div>
+					</div>
+					<div class="field-group">
+						<div class="field">
+							<span class="field-label">Medical Deduction ($)</span>
+							<input type="number" bind:value={annual_medical_deduction_2} />
+						</div>
+						<div class="field">
+							<span class="field-label">Dental Deduction ($)</span>
+							<input type="number" bind:value={annual_dental_deduction_2} />
+						</div>
+						<div class="field">
+							<span class="field-label">Vision Deduction ($)</span>
+							<input type="number" bind:value={annual_vision_deduction_2} />
+						</div>
+					</div>
 				</div>
 			</div>
 		</section>
 
-		<p>
-			<label for="currentYear">Current Year:</label>
-			<select id="currentYear" bind:value={currentYear}>
-				<option value="">-- Select Year --</option>
-				<option value="2023">2023</option>
-				<option value="2024">2024</option>
-				<option value="2025">2025</option>
-				<option value="2026">2026</option>
-			</select>
-
-			<br />
-
-			<label for="currentState">Residence State:</label>
-			<select id="currentState" bind:value={currentState}>
-				<option value="">-- Select State --</option>
-				<option value="New York">New York (NY)</option>
-				<option value="New Jersey">New Jersey (NJ)</option>
-				<!-- Add options for other states if needed -->
-			</select>
-			<br />
-
-			<label for="workState">Work State:</label>
-			<select id="workState" bind:value={workState}>
-				<option value="New York">New York (NY)</option>
-				<option value="New Jersey">New Jersey (NJ)</option>
-			</select>
-		</p>
-
-		<div>
-			<button on:click={saveData}>Save Data</button>
-			{#if saveStatus}
-				<p class="saveStatus">{saveStatus}</p>
-			{/if}
-		</div>
-
-		<hr />
-
-		<div class="splitDisplay">
-			<br /><b>Bonus:</b>
-			{formatAsCurrency(yearlyBonus1)}
-			<br /><b>401K Contribution:</b>
-			{formatAsCurrency(yearly401kContribution1)}
-	
-			<p>Gross Monthly Income: {formatAsCurrency(yearlySalary1 / 12 + yearlySalary2 / 12)}</p>
-		</div>
-		<hr />
-
-		<!-- Gross monthly income -->
-		<br />
-
-		<!-- Radio box to switch between annual, monthly, and fortnightly -->
-		<label for="interval">Interval:</label>
-		<label class="interval" for="annual">
-			<input
-				class="interval"
-				type="radio"
-				id="annual"
-				name="interval"
-				value="annual"
-				bind:group={interval}
-			/>
-			Annual
-		</label>
-		<label class="interval" for="monthly">
-			<input
-				class="interval"
-				type="radio"
-				id="monthly"
-				name="interval"
-				value="monthly"
-				bind:group={interval}
-			/>
-			Monthly
-		</label>
-		<label class="interval" for="fortnightly">
-			<input
-				class="interval"
-				type="radio"
-				id="fortnightly"
-				name="interval"
-				value="fortnightly"
-				bind:group={interval}
-			/>
-			Fortnightly
-		</label>
-
-		<div id="taxDisplay">
-			<div>
-				<TaxesByState
-					{currentState}
-					{workState}
-					{currentYear}
-					health_care_fsa_contributions={[health_care_fsa_contribution_1, health_care_fsa_contribution_2]}
-					dependent_care_fsa_contributions={[dependent_care_fsa_contribution_1, dependent_care_fsa_contribution_2]}
-					yearlySalaries={[yearlySalary1,yearlySalary2]}
-					contributionPercentages={[_401kContributionPercentage1, _401kContributionPercentage2]}
-					{interval}
-					monthlyDentalContributions={[annual_dental_deduction_1 / 12, annual_dental_deduction_2 / 12]}
-					monthlyMedicalContributions={[annual_medical_deduction_1 / 12, annual_medical_deduction_2 / 12]}
-					monthlyVisionContributions={[annual_vision_deduction_1 / 12, annual_vision_deduction_2 / 12]}
-				/>
+		<!-- Tax breakdown card -->
+		<section class="card">
+			<div class="section-header">
+				<h2>Tax Breakdown</h2>
 			</div>
-			<!-- <div>
 			<TaxesByState
-				currentState={'New Jersey'}
-				{taxableIncome}
-				bonusPercentage={bonusPercentage1 + bonusPercentage2}
-				yearlySalary={yearlySalary1 + yearlySalary2}
-				contributionPercentage={_401kContributionPercentage1 + _401kContributionPercentage2}
+				{currentState}
+				{workState}
+				{currentYear}
+				health_care_fsa_contributions={[health_care_fsa_contribution_1, health_care_fsa_contribution_2]}
+				dependent_care_fsa_contributions={[dependent_care_fsa_contribution_1, dependent_care_fsa_contribution_2]}
+				yearlySalaries={[yearlySalary1, yearlySalary2]}
+				contributionPercentages={[_401kContributionPercentage1, _401kContributionPercentage2]}
 				{interval}
+				monthlyDentalContributions={[annual_dental_deduction_1 / 12, annual_dental_deduction_2 / 12]}
+				monthlyMedicalContributions={[annual_medical_deduction_1 / 12, annual_medical_deduction_2 / 12]}
+				monthlyVisionContributions={[annual_vision_deduction_1 / 12, annual_vision_deduction_2 / 12]}
 			/>
-		</div> -->
-		</div>
-		<section style="display: none;">
-			<h3>Expenses</h3>
-			<button on:click={addExpense}>Add Expense</button>
-
-			{#each expenses as expense, index}
-				<div>
-					<input type="text" bind:value={expense.label} placeholder="Expense Label" />
-					<input type="number" bind:value={expense.amount} placeholder="Expense Amount" />
-					<button on:click={() => removeExpense(index)}>Remove</button>
-				</div>
-			{/each}
 		</section>
-	</section>
+
 	</main>
 </div>
 
 <style>
+	/* ── Auth bar ── */
+	.auth-bar {
+		position: fixed;
+		top: 0;
+		right: 0;
+		z-index: 100;
+		padding: 0.4rem 0.75rem;
+		background: #fff;
+		border-bottom-left-radius: 6px;
+		box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.auth-form {
+		display: flex;
+		gap: 0.4rem;
+		align-items: center;
+	}
+	.auth-form input {
+		padding: 0.3rem 0.5rem;
+		border: 1px solid #ccc;
+		border-radius: 4px;
+		font-size: 0.85rem;
+		width: 140px;
+	}
+	.auth-bar--signed-in { gap: 0.75rem; }
+	.auth-email { font-size: 0.8rem; color: #555; }
+
+	/* ── Layout ── */
 	.app {
 		display: flex;
 		min-height: 100vh;
-		font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu,
-			Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+		background: #f4f6fa;
+		font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+		font-size: 0.95rem;
+		color: #1a1d23;
 	}
 
-	main {
+	.main {
 		flex: 1;
-		max-width: 800px;
-		padding: 1.5rem 2rem;
+		min-width: 0;
+		padding: 1.5rem 2rem 3rem;
+		max-width: 1100px;
+	}
+
+	/* ── Page header ── */
+	.page-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+		margin-bottom: 1.5rem;
+	}
+
+	h1 {
+		font-size: 1.5rem;
+		font-weight: 700;
+		color: #1a1d23;
+		margin: 0;
+	}
+
+	.header-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.save-toast {
+		font-size: 0.85rem;
+		color: #2e8b57;
+		font-weight: 500;
+	}
+
+	/* ── Cards ── */
+	.card {
+		background: #fff;
+		border-radius: 12px;
+		padding: 1.25rem;
+		box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+		margin-bottom: 1rem;
+	}
+
+	/* ── Settings card ── */
+	.settings-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+		gap: 1rem;
+		align-items: start;
+	}
+
+	/* ── Section header ── */
+	.section-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 1rem;
+	}
+
+	h2 {
+		font-size: 1rem;
+		font-weight: 600;
+		color: #1a1d23;
+		margin: 0;
+	}
+
+	/* ── Persons grid ── */
+	.persons-grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 2rem;
+	}
+
+	h3 {
+		font-size: 0.78rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: #7a8099;
+		margin: 0 0 0.75rem;
+	}
+
+	/* ── Field groups ── */
+	.field-group {
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+		padding-bottom: 0.75rem;
+		margin-bottom: 0.75rem;
+		border-bottom: 1px solid #f0f2f7;
+	}
+
+	.field-group:last-child {
+		border-bottom: none;
+		margin-bottom: 0;
+		padding-bottom: 0;
+	}
+
+	/* ── Field ── */
+	.field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.field-label {
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: #7a8099;
+	}
+
+	.field input[type="number"],
+	.field select {
+		padding: 0.45rem 0.7rem;
+		border: 1px solid #d0d5e0;
+		border-radius: 8px;
+		background: #fff;
+		font-size: 0.95rem;
+		color: #1a1d23;
+		width: 100%;
+		box-sizing: border-box;
+	}
+
+	.field input[type="number"]:focus,
+	.field select:focus {
+		outline: none;
+		border-color: #4f86c6;
+		box-shadow: 0 0 0 2px rgba(79, 134, 198, 0.15);
+	}
+
+	.field-row {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
+	}
+
+	.flex-input {
+		flex: 1;
+		padding: 0.45rem 0.7rem;
+		border: 1px solid #d0d5e0;
+		border-radius: 8px;
+		font-size: 0.95rem;
+		color: #1a1d23;
 		min-width: 0;
 	}
 
-	.interval {
-		cursor: pointer;
-	}
-
-	#taxDisplay {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-	}
-
-	.splitDisplay
-	 {
+	/* ── Radio group ── */
+	.radio-group {
 		display: flex;
-		gap: 1em;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+		align-items: center;
+		padding-top: 0.1rem;
+	}
+
+	.radio-label {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: 0.9rem;
+		cursor: pointer;
+		color: #1a1d23;
+	}
+
+	/* ── Summary cards ── */
+	.summary-row {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 1rem;
+		margin-bottom: 1rem;
+	}
+
+	.summary-card {
+		background: #fff;
+		border-radius: 12px;
+		padding: 1.1rem 1.25rem;
+		display: flex;
 		flex-direction: column;
+		gap: 0.3rem;
+		box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 	}
 
-	.saveStatus {
-		margin-top: 0.5rem;
-		padding: 0.5rem;
-		background-color: #d4edda;
-		color: #155724;
-		border: 1px solid #c3e6cb;
-		border-radius: 4px;
-		font-size: 0.95rem;
+	.summary-label {
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: #7a8099;
 	}
 
-	@media (min-width: 768px) {
-		.splitDisplay {
-			flex-direction: row;
+	.summary-amount {
+		font-size: 1.45rem;
+		font-weight: 700;
+		color: #1a1d23;
+	}
+
+	.summary-sub {
+		font-size: 0.8rem;
+		color: #9ba3b5;
+	}
+
+	/* ── Buttons ── */
+	.btn-secondary {
+		padding: 0.45rem 0.85rem;
+		border: 1px solid #d0d5e0;
+		border-radius: 8px;
+		background: #fff;
+		font-size: 0.85rem;
+		font-weight: 500;
+		color: #444;
+		cursor: pointer;
+		transition: background 0.15s, border-color 0.15s;
+		white-space: nowrap;
+	}
+	.btn-secondary:hover { background: #eef0f6; border-color: #b0b8cc; }
+
+	.btn-sm { padding: 0.3rem 0.6rem; font-size: 0.82rem; }
+
+	/* ── Responsive ── */
+	@media (max-width: 767px) {
+		.app { flex-direction: column; }
+		.main { padding: 1rem; }
+		.persons-grid { grid-template-columns: 1fr; gap: 1.5rem; }
+		.summary-row { grid-template-columns: 1fr; gap: 0.75rem; }
+		.settings-grid { grid-template-columns: 1fr 1fr; }
+		.page-header h1 { font-size: 1.2rem; }
+		.auth-bar {
+			position: static;
+			border-bottom-left-radius: 0;
+			flex-wrap: wrap;
+			width: 100%;
+			box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+			padding: 0.75rem;
 		}
+		.auth-form { flex-direction: column; width: 100%; gap: 0.5rem; }
+		.auth-form input { width: 100%; padding: 0.5rem; font-size: 1rem; }
+	}
+
+	@media (max-width: 1024px) {
+		.main { max-width: 100%; }
 	}
 </style>
