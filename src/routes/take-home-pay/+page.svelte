@@ -2,18 +2,17 @@
 	import { base } from '$app/paths';
 	import { onMount } from 'svelte';
 
-	import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
+	import { onAuthStateChanged } from 'firebase/auth';
 	import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 	import { formatAsCurrency, safelyGetLocalStorage, safelySetLocalStorage } from '$lib';
 	import { darkMode } from '$lib/darkModeStore.js';
 	import TaxesByState from '$lib/TaxesByState.svelte';
 	import Nav from '$lib/Nav.svelte';
+	import AuthBar from '$lib/AuthBar.svelte';
 	import { auth, db } from '$lib/firebase.js';
 
 	let currentUser = auth.currentUser;
-
-	let email, password;
 
 	let yearlySalary1 = 100000;
 	let bonusPercentage1 = 5;
@@ -302,20 +301,6 @@
 		}
 	}
 
-	function signIn() {
-		if (!email || !password) return console.log('Email and password are required');
-		signInWithEmailAndPassword(auth, email, password)
-			.then((userCredential) => {
-				// Signed in
-				const user = userCredential.user;
-				console.log(user);
-				// ...
-			})
-			.catch((err) => {
-				console.log(err);
-			});
-	}
-
 	onAuthStateChanged(auth, async (user) => {
 		if (user) {
 			currentUser = user;
@@ -335,26 +320,7 @@
 <div class="app" class:dark-mode={$darkMode}>
 	<Nav />
 
-	{#if !currentUser}
-		<div class="auth-bar">
-			<form class="auth-form" on:submit|preventDefault={signIn}>
-				<input type="email" bind:value={email} placeholder="Email" required autocomplete="email" />
-				<input
-					type="password"
-					bind:value={password}
-					placeholder="Password"
-					required
-					autocomplete="current-password"
-				/>
-				<button type="submit" class="btn-secondary">Sign in to sync</button>
-			</form>
-		</div>
-	{:else}
-		<div class="auth-bar auth-bar--signed-in">
-			<span class="auth-email">{currentUser.email}</span>
-			<button class="btn-secondary" on:click={() => auth.signOut()}>Sign out</button>
-		</div>
-	{/if}
+	<AuthBar {currentUser} />
 
 	<main class="main">
 		<header class="page-header">
@@ -748,57 +714,6 @@
 </div>
 
 <style>
-	/* ── Auth bar ── */
-	.auth-bar {
-		position: fixed;
-		top: 0;
-		right: 0;
-		z-index: 100;
-		padding: 0.4rem 0.75rem;
-		background: var(--color-surface);
-		border-bottom-left-radius: 6px;
-		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		transition: background 0.2s;
-	}
-
-	:global(.dark-mode) .auth-bar {
-		box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-	}
-
-	.auth-form {
-		display: flex;
-		gap: 0.4rem;
-		align-items: center;
-	}
-
-	.auth-form input {
-		padding: 0.3rem 0.5rem;
-		border: 1px solid var(--color-border);
-		border-radius: 4px;
-		font-size: 0.85rem;
-		width: 140px;
-		background: var(--color-surface);
-		color: var(--color-text-primary);
-		transition: background 0.2s, color 0.2s, border-color 0.2s;
-	}
-
-	.auth-form input:focus {
-		outline: none;
-		border-color: var(--color-accent-blue);
-		box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent-blue) 15%, transparent);
-	}
-
-	.auth-bar--signed-in { gap: 0.75rem; }
-
-	.auth-email { 
-		font-size: 0.8rem;
-		color: var(--color-text-secondary);
-		transition: color 0.2s;
-	}
-
 	/* ── Layout ── */
 	.app {
 		display: flex;
@@ -1117,26 +1032,6 @@
 		}
 		.page-header h1 {
 			font-size: 1.2rem;
-		}
-		.auth-bar {
-			position: static;
-			border-bottom-left-radius: 0;
-			flex-wrap: wrap;
-			justify-content: flex-end;
-			width: stretch;
-			box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-			padding: 0.75rem;
-			z-index: 1;
-		}
-		.auth-form {
-			flex-direction: column;
-			width: 100%;
-			gap: 0.5rem;
-		}
-		.auth-form input {
-			width: 100%;
-			padding: 0.5rem;
-			font-size: 1rem;
 		}
 	}
 
