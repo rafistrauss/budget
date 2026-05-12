@@ -1122,9 +1122,11 @@
 			position: static;
 			border-bottom-left-radius: 0;
 			flex-wrap: wrap;
-			width: 100%;
+			justify-content: flex-end;
+			width: stretch;
 			box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 			padding: 0.75rem;
+			z-index: 1;
 		}
 		.auth-form {
 			flex-direction: column;
