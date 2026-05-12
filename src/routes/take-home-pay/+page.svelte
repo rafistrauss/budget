@@ -787,8 +787,8 @@
 
 	.auth-form input:focus {
 		outline: none;
-		border-color: #4f86c6;
-		box-shadow: 0 0 0 2px rgba(79, 134, 198, 0.15);
+		border-color: var(--color-accent-blue);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent-blue) 15%, transparent);
 	}
 
 	.auth-bar--signed-in { gap: 0.75rem; }
@@ -957,8 +957,8 @@
 	.field input[type='number']:focus,
 	.field select:focus {
 		outline: none;
-		border-color: #4f86c6;
-		box-shadow: 0 0 0 2px rgba(79, 134, 198, 0.15);
+		border-color: var(--color-accent-blue);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent-blue) 15%, transparent);
 	}
 
 	.field-row {
@@ -1054,7 +1054,7 @@
 	}
 
 	.collapsible-header:hover h2 { 
-		color: #4f86c6;
+		color: var(--color-accent-blue);
 		transition: color 0.2s;
 	}
 

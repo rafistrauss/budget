@@ -28,7 +28,7 @@
 			<span class="nav-icon">🏦</span> Checking
 		</a>
 	</nav>
-	<button class="dark-mode-toggle" on:click={() => darkMode.toggle()} title="Toggle dark mode">
+	<button type="button" class="dark-mode-toggle" on:click={() => darkMode.toggle()} title="Toggle dark mode" aria-label="Toggle dark mode" aria-pressed={$darkMode}>
 		{#if $darkMode}
 			☀️
 		{:else}
@@ -52,7 +52,21 @@
 		--color-text-primary: #1a1d23;
 		--color-text-secondary: #7a8099;
 		--color-text-tertiary: #9ba3b5;
+		--color-text-muted: #888;
+		--color-text-light: #444;
 		--color-border: #d0d5e0;
+		--color-border-light: #e5e8f0;
+		--color-bg-light: #f9fafb;
+		--color-bg-lighter: #eef0f6;
+		--color-accent-blue: #4f86c6;
+		--color-accent-orange: #e07b54;
+		--color-accent-green: #2e8b57;
+		--color-accent-red: #c0392b;
+		--color-accent-purple: #8b6bbf;
+		--color-accent-cyan: #4db8b0;
+		--color-accent-blue-light: #eef4ff;
+		--color-accent-blue-border: #c3d8f7;
+		--color-auth-border: #ccc;
 		--color-sidebar-bg: #1e2130;
 		--color-sidebar-text: #c8cdd8;
 		--color-sidebar-border: #2e3348;
@@ -67,7 +81,21 @@
 		--color-text-primary: #e6edf3;
 		--color-text-secondary: #8b949e;
 		--color-text-tertiary: #6e7681;
+		--color-text-muted: #6e7681;
+		--color-text-light: #c9d1d9;
 		--color-border: #30363d;
+		--color-border-light: #21262d;
+		--color-bg-light: #0d1117;
+		--color-bg-lighter: #1c2128;
+		--color-accent-blue: #58a6ff;
+		--color-accent-orange: #fb8500;
+		--color-accent-green: #3fb950;
+		--color-accent-red: #f85149;
+		--color-accent-purple: #d291ff;
+		--color-accent-cyan: #39c5cf;
+		--color-accent-blue-light: #1f3a5f;
+		--color-accent-blue-border: #2d5fa8;
+		--color-auth-border: #444;
 		--color-sidebar-bg: #0d1117;
 		--color-sidebar-text: #c9d1d9;
 		--color-sidebar-border: #21262d;

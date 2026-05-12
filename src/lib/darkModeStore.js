@@ -8,7 +8,7 @@ function createDarkModeStore() {
 		if (stored !== null) {
 			return stored === 'true';
 		}
-		return typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+		return typeof window !== 'undefined' && (window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? false);
 	})();
 
 	const { subscribe, set } = writable(initialDarkMode);
