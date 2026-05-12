@@ -104,6 +104,7 @@
 	}
 
 	.sidebar {
+		box-sizing: border-box;
 		width: 200px;
 		flex-shrink: 0;
 		background: var(--color-sidebar-bg);
