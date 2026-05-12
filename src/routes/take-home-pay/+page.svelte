@@ -431,15 +431,20 @@
 						</div>
 						<div class="field">
 							<span class="field-label">Deduction Entry Period</span>
-							<select
-								value={deductionInputPeriod1}
-								on:change={(event) =>
-									changeDeductionInputPeriod(1, /** @type {HTMLSelectElement} */ (event.currentTarget).value)}
-							>
-								<option value="annual">Annual</option>
-								<option value="monthly">Monthly</option>
-								<option value="biweekly">Biweekly</option>
-							</select>
+						<div class="radio-group">
+							<label class="radio-label">
+								<input type="radio" name="deductionPeriod1" value="annual" bind:group={deductionInputPeriod1} />
+								Annual
+							</label>
+							<label class="radio-label">
+								<input type="radio" name="deductionPeriod1" value="monthly" bind:group={deductionInputPeriod1} />
+								Monthly
+							</label>
+							<label class="radio-label">
+								<input type="radio" name="deductionPeriod1" value="biweekly" bind:group={deductionInputPeriod1} />
+								Biweekly
+							</label>
+						</div>
 							<span class="field-hint">Applies to FSA and medical, dental, and vision deductions.</span>
 						</div>
 						<div class="field">
@@ -527,15 +532,20 @@
 						</div>
 						<div class="field">
 							<span class="field-label">Deduction Entry Period</span>
-							<select
-								value={deductionInputPeriod2}
-								on:change={(event) =>
-									changeDeductionInputPeriod(2, /** @type {HTMLSelectElement} */ (event.currentTarget).value)}
-							>
-								<option value="annual">Annual</option>
-								<option value="monthly">Monthly</option>
-								<option value="biweekly">Biweekly</option>
-							</select>
+						<div class="radio-group">
+							<label class="radio-label">
+								<input type="radio" name="deductionPeriod2" value="annual" bind:group={deductionInputPeriod2} />
+								Annual
+							</label>
+							<label class="radio-label">
+								<input type="radio" name="deductionPeriod2" value="monthly" bind:group={deductionInputPeriod2} />
+								Monthly
+							</label>
+							<label class="radio-label">
+								<input type="radio" name="deductionPeriod2" value="biweekly" bind:group={deductionInputPeriod2} />
+								Biweekly
+							</label>
+						</div>
 							<span class="field-hint">Applies to FSA and medical, dental, and vision deductions.</span>
 						</div>
 						<div class="field">
