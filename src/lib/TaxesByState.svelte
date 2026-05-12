@@ -13,7 +13,7 @@
 	export let /** @type {'2023'|'2024'|'2025'|'2026'} */
 		currentYear = '2023',
 		currentState = 'New York',
-		cityTaxLocation = '',
+		workState = '',
 		/** @type {number[]} */
 		yearlySalaries = [],
 		/** @type {number[]} */
@@ -64,15 +64,16 @@
 	/** @type {number[]} */
 	let taxableIncomes = [];
 	let effectiveCityTaxLocation = '';
+	let effectiveStateTaxLocation = '';
 	/**
 	 * @type {{ rates: import("$lib").TaxRate[]; }}
 	 */
 	let taxRate;
 
 	$: {
-		effectiveCityTaxLocation =
-			cityTaxLocation || (currentState === 'New York' ? 'New York' : '');
-		taxRate = taxRatesFilingJointly[currentYear][currentState];
+		effectiveStateTaxLocation = workState || currentState;
+		effectiveCityTaxLocation = currentState === 'New York' ? 'New York' : '';
+		taxRate = taxRatesFilingJointly[currentYear][effectiveStateTaxLocation];
 
 		yearly401kContributions = yearlySalaries.map(
 			(salary, index) => (salary || 0) * ((contributionPercentages[index] || 0) / 100)
@@ -106,7 +107,7 @@
 		});
 
 		stateStandardTaxDeductions = yearlySalaries.map(
-			() => standardDeductions?.[currentYear]?.[filingStatus]?.[currentState]?.state ?? 0
+			() => standardDeductions?.[currentYear]?.[filingStatus]?.[effectiveStateTaxLocation]?.state ?? 0
 		);
 		federalStandardTaxDeductions = yearlySalaries.map(
 			() => standardDeductions?.[currentYear]?.[filingStatus]?.federal ?? 0
@@ -164,7 +165,7 @@
 	socialSecurityTaxAmount={socialSecurityTaxAmounts[0] + socialSecurityTaxAmounts[1]}
 	medicareTaxAmount={medicareTaxAmounts[0] + medicareTaxAmounts[1]}
 	{interval}
-	{currentState}
+	currentState={effectiveStateTaxLocation}
 	cityTaxLocation={effectiveCityTaxLocation}
 />
 
