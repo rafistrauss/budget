@@ -71,7 +71,7 @@
 	let taxRate;
 
 	$: {
-		effectiveStateTaxLocation = workState || currentState;
+		effectiveStateTaxLocation = workState;
 		effectiveCityTaxLocation = currentState === 'New York' ? 'New York' : '';
 		taxRate = taxRatesFilingJointly[currentYear][effectiveStateTaxLocation];
 

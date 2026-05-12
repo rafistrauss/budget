@@ -34,7 +34,7 @@
 
 	
 	let currentState = 'New Jersey';
-	let workState = 'New York';
+	let workState = 'New Jersey';
 	let currentYear = '2026';
 
 	let interval = 'annual';
@@ -276,7 +276,6 @@
 
 			<label for="workState">Work State:</label>
 			<select id="workState" bind:value={workState}>
-				<option value="">-- Select State --</option>
 				<option value="New York">New York (NY)</option>
 				<option value="New Jersey">New Jersey (NJ)</option>
 			</select>
