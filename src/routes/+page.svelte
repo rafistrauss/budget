@@ -1428,6 +1428,7 @@
 	.auth-form input:focus {
 		outline: none;
 		border-color: var(--color-accent-blue);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent-blue) 25%, transparent);
 	}
 
 	.auth-bar--signed-in {
