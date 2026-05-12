@@ -13,7 +13,7 @@
 	export let /** @type {'2023'|'2024'|'2025'|'2026'} */
 		currentYear = '2023',
 		currentState = 'New York',
-		workState = '',
+		workState = 'New Jersey',
 		/** @type {number[]} */
 		yearlySalaries = [],
 		/** @type {number[]} */
