@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 
 	import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
-	import { doc, getDoc } from 'firebase/firestore';
+	import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 	import { formatAsCurrency, safelyGetLocalStorage, safelySetLocalStorage } from '$lib';
 	import TaxesByState from '$lib/TaxesByState.svelte';
@@ -45,6 +45,7 @@
 	let expenses = []; // Array to store expenses, each expense will be an object { label: string, amount: number }
 
 	let hasLoaded = false;
+	let saveStatus = '';
 
 	let /** @type {number} */
 		yearlyBonus1,
@@ -84,6 +85,73 @@
 	 */
 	function removeExpense(index) {
 		expenses = expenses.filter((_, i) => i !== index);
+	}
+
+	// Function to save data
+	async function saveData() {
+		try {
+			if (currentUser) {
+				// Save to Firebase for signed-in users
+				await setDoc(doc(db, 'users', currentUser.uid), {
+					yearly_salary_1: yearlySalary1,
+					expected_bonus_1: bonusPercentage1,
+					'401k_contribution_1': _401kContributionPercentage1,
+					healthcare_fsa_contribution_1: health_care_fsa_contribution_1,
+					dependent_care_fsa_contribution_1: dependent_care_fsa_contribution_1,
+					annual_medical_deduction_1: annual_medical_deduction_1,
+					annual_dental_deduction_1: annual_dental_deduction_1,
+					annual_vision_deduction_1: annual_vision_deduction_1,
+					yearly_salary_2: yearlySalary2,
+					expected_bonus_2: bonusPercentage2,
+					'401k_contribution_2': _401kContributionPercentage2,
+					healthcare_fsa_contribution_2: health_care_fsa_contribution_2,
+					dependent_care_fsa_contribution_2: dependent_care_fsa_contribution_2,
+					annual_medical_deduction_2: annual_medical_deduction_2,
+					annual_dental_deduction_2: annual_dental_deduction_2,
+					annual_vision_deduction_2: annual_vision_deduction_2,
+					current_state: currentState,
+					work_state: workState,
+					current_year: currentYear
+				}, { merge: true });
+				saveStatus = 'Data saved successfully!';
+			} else {
+				// Save to local storage for unsigned users
+				const userData = {
+					yearly_salary_1: yearlySalary1,
+					expected_bonus_1: bonusPercentage1,
+					'401k_contribution_1': _401kContributionPercentage1,
+					healthcare_fsa_contribution_1: health_care_fsa_contribution_1,
+					dependent_care_fsa_contribution_1: dependent_care_fsa_contribution_1,
+					annual_medical_deduction_1: annual_medical_deduction_1,
+					annual_dental_deduction_1: annual_dental_deduction_1,
+					annual_vision_deduction_1: annual_vision_deduction_1,
+					yearly_salary_2: yearlySalary2,
+					expected_bonus_2: bonusPercentage2,
+					'401k_contribution_2': _401kContributionPercentage2,
+					healthcare_fsa_contribution_2: health_care_fsa_contribution_2,
+					dependent_care_fsa_contribution_2: dependent_care_fsa_contribution_2,
+					annual_medical_deduction_2: annual_medical_deduction_2,
+					annual_dental_deduction_2: annual_dental_deduction_2,
+					annual_vision_deduction_2: annual_vision_deduction_2,
+					current_state: currentState,
+					work_state: workState,
+					current_year: currentYear
+				};
+				safelySetLocalStorage('calculatorData', JSON.stringify(userData));
+				saveStatus = 'Data saved locally!';
+			}
+			
+			// Clear the status message after 3 seconds
+			setTimeout(() => {
+				saveStatus = '';
+			}, 3000);
+		} catch (err) {
+			console.error('Error saving data:', err);
+			saveStatus = 'Error saving data';
+			setTimeout(() => {
+				saveStatus = '';
+			}, 3000);
+		}
 	}
 
 	function signIn() {
@@ -281,6 +349,13 @@
 			</select>
 		</p>
 
+		<div>
+			<button on:click={saveData}>Save Data</button>
+			{#if saveStatus}
+				<p class="saveStatus">{saveStatus}</p>
+			{/if}
+		</div>
+
 		<hr />
 
 		<div class="splitDisplay">
@@ -404,6 +479,16 @@
 		display: flex;
 		gap: 1em;
 		flex-direction: column;
+	}
+
+	.saveStatus {
+		margin-top: 0.5rem;
+		padding: 0.5rem;
+		background-color: #d4edda;
+		color: #155724;
+		border: 1px solid #c3e6cb;
+		border-radius: 4px;
+		font-size: 0.95rem;
 	}
 
 	@media (min-width: 768px) {
