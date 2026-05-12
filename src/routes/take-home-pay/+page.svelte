@@ -79,7 +79,7 @@
 	 * @param {string} period
 	 */
 	function displayFromAnnual(annualValue, period) {
-		return Math.round(((Number(annualValue) || 0) / periodMultiplier(period)) * 100) / 100;
+		return Number(((Number(annualValue) || 0) / periodMultiplier(period)).toFixed(2));
 	}
 
 	/**
