@@ -38,6 +38,8 @@
 	let currentYear = '2026';
 
 	let interval = 'annual';
+	let deductionInputPeriod1 = 'annual';
+	let deductionInputPeriod2 = 'annual';
 
 	/**
 	 * @type {Expense[]}
@@ -62,6 +64,56 @@
 		yearly401kContribution1 = (yearlySalary1 || 0) * ((_401kContributionPercentage1 || 0) / 100);
 		yearlyBonus2 = (yearlySalary2 || 0) * ((bonusPercentage2 || 0) / 100);
 		yearly401kContribution2 = (yearlySalary2 || 0) * ((_401kContributionPercentage2 || 0) / 100);
+	}
+
+	/**
+	 * @param {string} period
+	 */
+	function periodMultiplier(period) {
+		if (period === 'monthly') return 12;
+		if (period === 'biweekly') return 26;
+		return 1;
+	}
+
+	/**
+	 * @param {number} annualValue
+	 * @param {string} period
+	 */
+	function displayFromAnnual(annualValue, period) {
+		return (Number(annualValue) || 0) / periodMultiplier(period);
+	}
+
+	/**
+	 * @param {number | string} displayValue
+	 * @param {string} period
+	 */
+	function annualFromDisplay(displayValue, period) {
+		return (Number(displayValue) || 0) * periodMultiplier(period);
+	}
+
+	/**
+	 * @param {Record<string, any>} data
+	 * @param {string} annualKey
+	 * @param {string} enteredKey
+	 * @param {string} period
+	 * @param {number} fallback
+	 */
+	function getAnnualStoredValue(data, annualKey, enteredKey, period, fallback) {
+		if (data[annualKey] != null) return Number(data[annualKey]) || 0;
+		if (data[enteredKey] != null) return annualFromDisplay(data[enteredKey], period);
+		return fallback;
+	}
+
+	/**
+	 * @param {number} person
+	 * @param {string} nextPeriod
+	 */
+	function changeDeductionInputPeriod(person, nextPeriod) {
+		if (person === 1) {
+			deductionInputPeriod1 = nextPeriod;
+			return;
+		}
+		deductionInputPeriod2 = nextPeriod;
 	}
 
 	$: if (hasLoaded) {
@@ -97,6 +149,7 @@
 					yearly_salary_1: yearlySalary1,
 					expected_bonus_1: bonusPercentage1,
 					'401k_contribution_1': _401kContributionPercentage1,
+					deduction_input_period_1: deductionInputPeriod1,
 					healthcare_fsa_contribution_1: health_care_fsa_contribution_1,
 					dependent_care_fsa_contribution_1: dependent_care_fsa_contribution_1,
 					annual_medical_deduction_1: annual_medical_deduction_1,
@@ -105,6 +158,7 @@
 					yearly_salary_2: yearlySalary2,
 					expected_bonus_2: bonusPercentage2,
 					'401k_contribution_2': _401kContributionPercentage2,
+					deduction_input_period_2: deductionInputPeriod2,
 					healthcare_fsa_contribution_2: health_care_fsa_contribution_2,
 					dependent_care_fsa_contribution_2: dependent_care_fsa_contribution_2,
 					annual_medical_deduction_2: annual_medical_deduction_2,
@@ -121,6 +175,7 @@
 					yearly_salary_1: yearlySalary1,
 					expected_bonus_1: bonusPercentage1,
 					'401k_contribution_1': _401kContributionPercentage1,
+					deduction_input_period_1: deductionInputPeriod1,
 					healthcare_fsa_contribution_1: health_care_fsa_contribution_1,
 					dependent_care_fsa_contribution_1: dependent_care_fsa_contribution_1,
 					annual_medical_deduction_1: annual_medical_deduction_1,
@@ -129,6 +184,7 @@
 					yearly_salary_2: yearlySalary2,
 					expected_bonus_2: bonusPercentage2,
 					'401k_contribution_2': _401kContributionPercentage2,
+					deduction_input_period_2: deductionInputPeriod2,
 					healthcare_fsa_contribution_2: health_care_fsa_contribution_2,
 					dependent_care_fsa_contribution_2: dependent_care_fsa_contribution_2,
 					annual_medical_deduction_2: annual_medical_deduction_2,
@@ -177,13 +233,84 @@
 			const data = snapshot.data();
 			if (data) {
 				_401kContributionPercentage1 = data['401k_contribution_1'] ?? _401kContributionPercentage1;
-				health_care_fsa_contribution_1 = data['healthcare_fsa_contribution_1'] ?? health_care_fsa_contribution_1;
-				dependent_care_fsa_contribution_1 = data['dependent_care_fsa_contribution_1'] ?? dependent_care_fsa_contribution_1;
-				annual_medical_deduction_1 = data['annual_medical_deduction_1'] ?? annual_medical_deduction_1;
-				annual_dental_deduction_1 = data['annual_dental_deduction_1'] ?? annual_dental_deduction_1;
-				annual_vision_deduction_1 = data['annual_vision_deduction_1'] ?? annual_vision_deduction_1;
+				deductionInputPeriod1 = data['deduction_input_period_1'] ?? deductionInputPeriod1;
+				health_care_fsa_contribution_1 = getAnnualStoredValue(
+					data,
+					'healthcare_fsa_contribution_1',
+					'entered_healthcare_fsa_contribution_1',
+					deductionInputPeriod1,
+					health_care_fsa_contribution_1
+				);
+				dependent_care_fsa_contribution_1 = getAnnualStoredValue(
+					data,
+					'dependent_care_fsa_contribution_1',
+					'entered_dependent_care_fsa_contribution_1',
+					deductionInputPeriod1,
+					dependent_care_fsa_contribution_1
+				);
+				annual_medical_deduction_1 = getAnnualStoredValue(
+					data,
+					'annual_medical_deduction_1',
+					'entered_medical_deduction_1',
+					deductionInputPeriod1,
+					annual_medical_deduction_1
+				);
+				annual_dental_deduction_1 = getAnnualStoredValue(
+					data,
+					'annual_dental_deduction_1',
+					'entered_dental_deduction_1',
+					deductionInputPeriod1,
+					annual_dental_deduction_1
+				);
+				annual_vision_deduction_1 = getAnnualStoredValue(
+					data,
+					'annual_vision_deduction_1',
+					'entered_vision_deduction_1',
+					deductionInputPeriod1,
+					annual_vision_deduction_1
+				);
 				yearlySalary1 = data['yearly_salary_1'] ?? yearlySalary1;
 				bonusPercentage1 = data['expected_bonus_1'] ?? bonusPercentage1;
+
+				_401kContributionPercentage2 = data['401k_contribution_2'] ?? _401kContributionPercentage2;
+				deductionInputPeriod2 = data['deduction_input_period_2'] ?? deductionInputPeriod2;
+				health_care_fsa_contribution_2 = getAnnualStoredValue(
+					data,
+					'healthcare_fsa_contribution_2',
+					'entered_healthcare_fsa_contribution_2',
+					deductionInputPeriod2,
+					health_care_fsa_contribution_2
+				);
+				dependent_care_fsa_contribution_2 = getAnnualStoredValue(
+					data,
+					'dependent_care_fsa_contribution_2',
+					'entered_dependent_care_fsa_contribution_2',
+					deductionInputPeriod2,
+					dependent_care_fsa_contribution_2
+				);
+				annual_medical_deduction_2 = getAnnualStoredValue(
+					data,
+					'annual_medical_deduction_2',
+					'entered_medical_deduction_2',
+					deductionInputPeriod2,
+					annual_medical_deduction_2
+				);
+				annual_dental_deduction_2 = getAnnualStoredValue(
+					data,
+					'annual_dental_deduction_2',
+					'entered_dental_deduction_2',
+					deductionInputPeriod2,
+					annual_dental_deduction_2
+				);
+				annual_vision_deduction_2 = getAnnualStoredValue(
+					data,
+					'annual_vision_deduction_2',
+					'entered_vision_deduction_2',
+					deductionInputPeriod2,
+					annual_vision_deduction_2
+				);
+				yearlySalary2 = data['yearly_salary_2'] ?? yearlySalary2;
+				bonusPercentage2 = data['expected_bonus_2'] ?? bonusPercentage2;
 			}
 			console.log(snapshot.data());
 		} else {
@@ -303,26 +430,79 @@
 							<input type="number" bind:value={_401kContributionPercentage1} />
 						</div>
 						<div class="field">
+							<span class="field-label">Deduction Entry Period</span>
+							<select
+								value={deductionInputPeriod1}
+								on:change={(event) =>
+									changeDeductionInputPeriod(1, /** @type {HTMLSelectElement} */ (event.currentTarget).value)}
+							>
+								<option value="annual">Annual</option>
+								<option value="monthly">Monthly</option>
+								<option value="biweekly">Biweekly</option>
+							</select>
+							<span class="field-hint">Applies to FSA and medical, dental, and vision deductions.</span>
+						</div>
+						<div class="field">
 							<span class="field-label">Healthcare FSA ($)</span>
-							<input type="number" bind:value={health_care_fsa_contribution_1} />
+							<input
+								type="number"
+								value={displayFromAnnual(health_care_fsa_contribution_1, deductionInputPeriod1)}
+								on:input={(event) =>
+									(health_care_fsa_contribution_1 = annualFromDisplay(
+										/** @type {HTMLInputElement} */ (event.currentTarget).value,
+										deductionInputPeriod1
+									))}
+							/>
 						</div>
 						<div class="field">
 							<span class="field-label">Dependent Care FSA ($)</span>
-							<input type="number" bind:value={dependent_care_fsa_contribution_1} />
+							<input
+								type="number"
+								value={displayFromAnnual(dependent_care_fsa_contribution_1, deductionInputPeriod1)}
+								on:input={(event) =>
+									(dependent_care_fsa_contribution_1 = annualFromDisplay(
+										/** @type {HTMLInputElement} */ (event.currentTarget).value,
+										deductionInputPeriod1
+									))}
+							/>
 						</div>
 					</div>
 					<div class="field-group">
 						<div class="field">
 							<span class="field-label">Medical Deduction ($)</span>
-							<input type="number" bind:value={annual_medical_deduction_1} />
+							<input
+								type="number"
+								value={displayFromAnnual(annual_medical_deduction_1, deductionInputPeriod1)}
+								on:input={(event) =>
+									(annual_medical_deduction_1 = annualFromDisplay(
+										/** @type {HTMLInputElement} */ (event.currentTarget).value,
+										deductionInputPeriod1
+									))}
+							/>
 						</div>
 						<div class="field">
 							<span class="field-label">Dental Deduction ($)</span>
-							<input type="number" bind:value={annual_dental_deduction_1} />
+							<input
+								type="number"
+								value={displayFromAnnual(annual_dental_deduction_1, deductionInputPeriod1)}
+								on:input={(event) =>
+									(annual_dental_deduction_1 = annualFromDisplay(
+										/** @type {HTMLInputElement} */ (event.currentTarget).value,
+										deductionInputPeriod1
+									))}
+							/>
 						</div>
 						<div class="field">
 							<span class="field-label">Vision Deduction ($)</span>
-							<input type="number" bind:value={annual_vision_deduction_1} />
+							<input
+								type="number"
+								value={displayFromAnnual(annual_vision_deduction_1, deductionInputPeriod1)}
+								on:input={(event) =>
+									(annual_vision_deduction_1 = annualFromDisplay(
+										/** @type {HTMLInputElement} */ (event.currentTarget).value,
+										deductionInputPeriod1
+									))}
+							/>
 						</div>
 					</div>
 				</div>
@@ -346,26 +526,79 @@
 							<input type="number" bind:value={_401kContributionPercentage2} />
 						</div>
 						<div class="field">
+							<span class="field-label">Deduction Entry Period</span>
+							<select
+								value={deductionInputPeriod2}
+								on:change={(event) =>
+									changeDeductionInputPeriod(2, /** @type {HTMLSelectElement} */ (event.currentTarget).value)}
+							>
+								<option value="annual">Annual</option>
+								<option value="monthly">Monthly</option>
+								<option value="biweekly">Biweekly</option>
+							</select>
+							<span class="field-hint">Applies to FSA and medical, dental, and vision deductions.</span>
+						</div>
+						<div class="field">
 							<span class="field-label">Healthcare FSA ($)</span>
-							<input type="number" bind:value={health_care_fsa_contribution_2} />
+							<input
+								type="number"
+								value={displayFromAnnual(health_care_fsa_contribution_2, deductionInputPeriod2)}
+								on:input={(event) =>
+									(health_care_fsa_contribution_2 = annualFromDisplay(
+										/** @type {HTMLInputElement} */ (event.currentTarget).value,
+										deductionInputPeriod2
+									))}
+							/>
 						</div>
 						<div class="field">
 							<span class="field-label">Dependent Care FSA ($)</span>
-							<input type="number" bind:value={dependent_care_fsa_contribution_2} />
+							<input
+								type="number"
+								value={displayFromAnnual(dependent_care_fsa_contribution_2, deductionInputPeriod2)}
+								on:input={(event) =>
+									(dependent_care_fsa_contribution_2 = annualFromDisplay(
+										/** @type {HTMLInputElement} */ (event.currentTarget).value,
+										deductionInputPeriod2
+									))}
+							/>
 						</div>
 					</div>
 					<div class="field-group">
 						<div class="field">
 							<span class="field-label">Medical Deduction ($)</span>
-							<input type="number" bind:value={annual_medical_deduction_2} />
+							<input
+								type="number"
+								value={displayFromAnnual(annual_medical_deduction_2, deductionInputPeriod2)}
+								on:input={(event) =>
+									(annual_medical_deduction_2 = annualFromDisplay(
+										/** @type {HTMLInputElement} */ (event.currentTarget).value,
+										deductionInputPeriod2
+									))}
+							/>
 						</div>
 						<div class="field">
 							<span class="field-label">Dental Deduction ($)</span>
-							<input type="number" bind:value={annual_dental_deduction_2} />
+							<input
+								type="number"
+								value={displayFromAnnual(annual_dental_deduction_2, deductionInputPeriod2)}
+								on:input={(event) =>
+									(annual_dental_deduction_2 = annualFromDisplay(
+										/** @type {HTMLInputElement} */ (event.currentTarget).value,
+										deductionInputPeriod2
+									))}
+							/>
 						</div>
 						<div class="field">
 							<span class="field-label">Vision Deduction ($)</span>
-							<input type="number" bind:value={annual_vision_deduction_2} />
+							<input
+								type="number"
+								value={displayFromAnnual(annual_vision_deduction_2, deductionInputPeriod2)}
+								on:input={(event) =>
+									(annual_vision_deduction_2 = annualFromDisplay(
+										/** @type {HTMLInputElement} */ (event.currentTarget).value,
+										deductionInputPeriod2
+									))}
+							/>
 						</div>
 					</div>
 				</div>
@@ -563,6 +796,11 @@
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 		color: #7a8099;
+	}
+
+	.field-hint {
+		font-size: 0.75rem;
+		color: #9ba3b5;
 	}
 
 	.field input[type="number"],
