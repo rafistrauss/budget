@@ -129,8 +129,9 @@
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
-		color: #9ba3b5;
+		color: var(--color-text-tertiary);
 		margin-bottom: 0.5rem;
+		transition: color 0.2s;
 	}
 
 	.tax-rows {
@@ -161,30 +162,34 @@
 	.tax-label {
 		flex: 1;
 		font-size: 0.88rem;
-		color: #1a1d23;
+		color: var(--color-text-primary);
+		transition: color 0.2s;
 	}
 
 	.tax-amount {
 		font-size: 0.9rem;
 		font-weight: 600;
-		color: #1a1d23;
+		color: var(--color-text-primary);
 		min-width: 80px;
 		text-align: right;
+		transition: color 0.2s;
 	}
 
 	.tax-pct {
 		font-size: 0.78rem;
-		color: #9ba3b5;
+		color: var(--color-text-tertiary);
 		min-width: 40px;
 		text-align: right;
+		transition: color 0.2s;
 	}
 
 	.tax-bar-track {
 		height: 4px;
-		background: #f0f2f7;
+		background: var(--color-border);
 		border-radius: 2px;
 		overflow: hidden;
 		margin-left: 17px;
+		transition: background 0.2s;
 	}
 
 	.tax-bar-fill {
@@ -199,18 +204,21 @@
 		align-items: center;
 		margin-top: 0.75rem;
 		padding-top: 0.75rem;
-		border-top: 1px solid #e8eaf2;
+		border-top: 1px solid var(--color-border);
+		transition: border-color 0.2s;
 	}
 
 	.tax-total-label {
 		font-size: 0.88rem;
 		font-weight: 700;
-		color: #1a1d23;
+		color: var(--color-text-primary);
+		transition: color 0.2s;
 	}
 
 	.tax-total-amount {
 		font-size: 1.05rem;
 		font-weight: 700;
-		color: #1a1d23;
+		color: var(--color-text-primary);
+		transition: color 0.2s;
 	}
 </style>

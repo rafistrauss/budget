@@ -6,6 +6,7 @@
 	import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 	import { formatAsCurrency, safelyGetLocalStorage, safelySetLocalStorage } from '$lib';
+	import { darkMode } from '$lib/darkModeStore.js';
 	import TaxesByState from '$lib/TaxesByState.svelte';
 	import Nav from '$lib/Nav.svelte';
 	import { auth, db } from '$lib/firebase.js';
@@ -331,7 +332,7 @@
 	});
 </script>
 
-<div class="app">
+<div class="app" class:dark-mode={$darkMode}>
 	<Nav />
 
 	{#if !currentUser}
@@ -754,41 +755,59 @@
 		right: 0;
 		z-index: 100;
 		padding: 0.4rem 0.75rem;
-		background: #fff;
+		background: var(--color-surface);
 		border-bottom-left-radius: 6px;
 		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
+		transition: background 0.2s;
 	}
+
+	:global(.dark-mode) .auth-bar {
+		box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+	}
+
 	.auth-form {
 		display: flex;
 		gap: 0.4rem;
 		align-items: center;
 	}
+
 	.auth-form input {
 		padding: 0.3rem 0.5rem;
-		border: 1px solid #ccc;
+		border: 1px solid var(--color-border);
 		border-radius: 4px;
 		font-size: 0.85rem;
 		width: 140px;
+		background: var(--color-surface);
+		color: var(--color-text-primary);
+		transition: background 0.2s, color 0.2s, border-color 0.2s;
 	}
-	.auth-bar--signed-in {
-		gap: 0.75rem;
+
+	.auth-form input:focus {
+		outline: none;
+		border-color: #4f86c6;
+		box-shadow: 0 0 0 2px rgba(79, 134, 198, 0.15);
 	}
-	.auth-email {
+
+	.auth-bar--signed-in { gap: 0.75rem; }
+
+	.auth-email { 
 		font-size: 0.8rem;
-		color: #555;
+		color: var(--color-text-secondary);
+		transition: color 0.2s;
 	}
 
 	/* ── Layout ── */
 	.app {
 		display: flex;
 		min-height: 100vh;
-		background: #f4f6fa;
+		background: var(--color-bg);
 		font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 		font-size: 0.95rem;
-		color: #1a1d23;
+		color: var(--color-text-primary);
+		transition: background 0.2s, color 0.2s;
 	}
 
 	.main {
@@ -811,8 +830,9 @@
 	h1 {
 		font-size: 1.5rem;
 		font-weight: 700;
-		color: #1a1d23;
+		color: var(--color-text-primary);
 		margin: 0;
+		transition: color 0.2s;
 	}
 
 	.header-actions {
@@ -829,11 +849,16 @@
 
 	/* ── Cards ── */
 	.card {
-		background: #fff;
+		background: var(--color-surface);
 		border-radius: 12px;
 		padding: 1.25rem;
 		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 		margin-bottom: 1rem;
+		transition: background 0.2s;
+	}
+
+	:global(.dark-mode) .card {
+		box-shadow: 0 1px 4px rgba(0,0,0,0.3);
 	}
 
 	/* ── Settings card ── */
@@ -855,8 +880,9 @@
 	h2 {
 		font-size: 1rem;
 		font-weight: 600;
-		color: #1a1d23;
+		color: var(--color-text-primary);
 		margin: 0;
+		transition: color 0.2s;
 	}
 
 	/* ── Persons grid ── */
@@ -871,8 +897,9 @@
 		font-weight: 700;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
-		color: #7a8099;
+		color: var(--color-text-secondary);
 		margin: 0 0 0.75rem;
+		transition: color 0.2s;
 	}
 
 	/* ── Field groups ── */
@@ -882,7 +909,8 @@
 		gap: 0.6rem;
 		padding-bottom: 0.75rem;
 		margin-bottom: 0.75rem;
-		border-bottom: 1px solid #f0f2f7;
+		border-bottom: 1px solid var(--color-border);
+		transition: border-color 0.2s;
 	}
 
 	.field-group:last-child {
@@ -903,24 +931,27 @@
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
-		color: #7a8099;
+		color: var(--color-text-secondary);
+		transition: color 0.2s;
 	}
 
 	.field-hint {
 		font-size: 0.75rem;
-		color: #9ba3b5;
+		color: var(--color-text-tertiary);
+		transition: color 0.2s;
 	}
 
 	.field input[type='number'],
 	.field select {
 		padding: 0.45rem 0.7rem;
-		border: 1px solid #d0d5e0;
+		border: 1px solid var(--color-border);
 		border-radius: 8px;
-		background: #fff;
+		background: var(--color-surface);
 		font-size: 0.95rem;
-		color: #1a1d23;
+		color: var(--color-text-primary);
 		width: 100%;
 		box-sizing: border-box;
+		transition: background 0.2s, color 0.2s, border-color 0.2s;
 	}
 
 	.field input[type='number']:focus,
@@ -939,11 +970,13 @@
 	.flex-input {
 		flex: 1;
 		padding: 0.45rem 0.7rem;
-		border: 1px solid #d0d5e0;
+		border: 1px solid var(--color-border);
 		border-radius: 8px;
 		font-size: 0.95rem;
-		color: #1a1d23;
+		color: var(--color-text-primary);
+		background: var(--color-surface);
 		min-width: 0;
+		transition: background 0.2s, color 0.2s, border-color 0.2s;
 	}
 
 	/* ── Radio group ── */
@@ -961,7 +994,8 @@
 		gap: 0.35rem;
 		font-size: 0.9rem;
 		cursor: pointer;
-		color: #1a1d23;
+		color: var(--color-text-primary);
+		transition: color 0.2s;
 	}
 
 	/* ── Summary cards ── */
@@ -973,13 +1007,18 @@
 	}
 
 	.summary-card {
-		background: #fff;
+		background: var(--color-surface);
 		border-radius: 12px;
 		padding: 1.1rem 1.25rem;
 		display: flex;
 		flex-direction: column;
 		gap: 0.3rem;
 		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+		transition: background 0.2s;
+	}
+
+	:global(.dark-mode) .summary-card {
+		box-shadow: 0 1px 4px rgba(0,0,0,0.3);
 	}
 
 	.summary-label {
@@ -987,18 +1026,21 @@
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
-		color: #7a8099;
+		color: var(--color-text-secondary);
+		transition: color 0.2s;
 	}
 
 	.summary-amount {
 		font-size: 1.45rem;
 		font-weight: 700;
-		color: #1a1d23;
+		color: var(--color-text-primary);
+		transition: color 0.2s;
 	}
 
 	.summary-sub {
 		font-size: 0.8rem;
-		color: #9ba3b5;
+		color: var(--color-text-tertiary);
+		transition: color 0.2s;
 	}
 
 	/* ── Collapsible ── */
@@ -1010,17 +1052,20 @@
 		cursor: pointer;
 		margin-bottom: 0;
 	}
-	.collapsible-header:hover h2 {
+
+	.collapsible-header:hover h2 { 
 		color: #4f86c6;
+		transition: color 0.2s;
 	}
 
 	.chevron {
 		font-size: 1.2rem;
-		color: #7a8099;
-		transition: transform 0.2s;
+		color: var(--color-text-secondary);
+		transition: transform 0.2s, color 0.2s;
 		display: inline-block;
 		transform: rotate(90deg);
 	}
+	
 	.chevron.open {
 		transform: rotate(-90deg);
 	}
@@ -1028,19 +1073,21 @@
 	/* ── Buttons ── */
 	.btn-secondary {
 		padding: 0.45rem 0.85rem;
-		border: 1px solid #d0d5e0;
+		border: 1px solid var(--color-border);
 		border-radius: 8px;
-		background: #fff;
+		background: var(--color-surface);
 		font-size: 0.85rem;
 		font-weight: 500;
-		color: #444;
+		color: var(--color-text-primary);
 		cursor: pointer;
-		transition: background 0.15s, border-color 0.15s;
+		transition: background 0.15s, border-color 0.15s, color 0.15s;
 		white-space: nowrap;
 	}
-	.btn-secondary:hover {
-		background: #eef0f6;
-		border-color: #b0b8cc;
+
+	.btn-secondary:hover { 
+		background: var(--color-bg);
+		border-color: var(--color-text-tertiary);
+		transition: background 0.15s, border-color 0.15s;
 	}
 
 	.btn-sm {

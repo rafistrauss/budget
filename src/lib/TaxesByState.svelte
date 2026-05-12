@@ -216,13 +216,15 @@
 	.breakdown-title {
 		font-size: 1rem;
 		font-weight: 600;
-		color: #1a1d23;
+		color: var(--color-text-primary);
 		margin: 0;
+		transition: color 0.2s;
 	}
 
 	.breakdown-meta {
 		font-size: 0.8rem;
-		color: #7a8099;
+		color: var(--color-text-secondary);
+		transition: color 0.2s;
 	}
 
 	.takehome-row {
@@ -233,12 +235,13 @@
 	}
 
 	.takehome-card {
-		background: #f4f6fa;
+		background: var(--color-bg);
 		border-radius: 10px;
 		padding: 0.85rem 1rem;
 		display: flex;
 		flex-direction: column;
 		gap: 0.25rem;
+		transition: background 0.2s;
 	}
 
 	.takehome-card.primary {
@@ -246,22 +249,33 @@
 		border: 1px solid #c3d8f7;
 	}
 
+	:global(.dark-mode) .takehome-card.primary {
+		background: #1f3a5f;
+		border-color: #2d5fa8;
+	}
+
 	.takehome-label {
 		font-size: 0.72rem;
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
-		color: #7a8099;
+		color: var(--color-text-secondary);
+		transition: color 0.2s;
 	}
 
 	.takehome-amount {
 		font-size: 1.3rem;
 		font-weight: 700;
-		color: #1a1d23;
+		color: var(--color-text-primary);
+		transition: color 0.2s;
 	}
 
 	.takehome-card.primary .takehome-amount {
 		color: #2c5fa8;
+	}
+
+	:global(.dark-mode) .takehome-card.primary .takehome-amount {
+		color: #7dbeff;
 	}
 
 	.taxable-row {
@@ -269,9 +283,10 @@
 		gap: 1.5rem;
 		margin-bottom: 1.25rem;
 		padding: 0.75rem 1rem;
-		background: #fafbfd;
+		background: var(--color-bg);
 		border-radius: 8px;
-		border: 1px solid #e8eaf2;
+		border: 1px solid var(--color-border);
+		transition: background 0.2s, border-color 0.2s;
 	}
 
 	.taxable-item {
@@ -285,13 +300,15 @@
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
-		color: #9ba3b5;
+		color: var(--color-text-tertiary);
+		transition: color 0.2s;
 	}
 
 	.taxable-value {
 		font-size: 0.95rem;
 		font-weight: 600;
-		color: #1a1d23;
+		color: var(--color-text-primary);
+		transition: color 0.2s;
 	}
 
 	@media (max-width: 600px) {
