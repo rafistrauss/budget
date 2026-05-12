@@ -1466,6 +1466,7 @@
 	/* ── Layout ── */
 	.app {
 		display: flex;
+		width: 100%;
 		min-height: 100vh;
 		background: var(--color-bg);
 		font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
