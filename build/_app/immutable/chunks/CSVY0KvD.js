@@ -1,1 +1,0 @@
-import{g as a,i as t,a as p,b as s}from"./BxUPGI7c.js";const o={apiKey:"AIzaSyC_wqKaOmHf0Nq31JOZtCt3pSQN_m1FOLk",authDomain:"budget-e231f.firebaseapp.com",projectId:"budget-e231f",storageBucket:"budget-e231f.appspot.com",messagingSenderId:"324153005171",appId:"1:324153005171:web:1a3196daf6a3b148b94606"},e=a().length?a()[0]:t(o),g=p(e),b=s(e);export{g as a,b as d};
