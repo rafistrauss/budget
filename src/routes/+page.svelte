@@ -87,6 +87,8 @@
 	let incomeChangeAmount = 0;
 
 	let hasLoadedFromStorage = false;
+	/** @type {'' | 'saving' | 'saved' | 'error'} */
+	let saveStatus = '';
 
 	/**
 	 * @type {import('firebase/auth').User | null}
@@ -223,6 +225,20 @@
 	function debouncedSyncBudgetToFirebase() {
 		clearTimeout(syncDebounceTimer);
 		syncDebounceTimer = setTimeout(syncBudgetToFirebase, 2000);
+	}
+
+	async function saveManually() {
+		saveStatus = 'saving';
+		try {
+			safelySetLocalStorage(STORAGE_KEY, JSON.stringify({ categories, incomeSources, bonuses }));
+			clearTimeout(syncDebounceTimer);
+			await syncBudgetToFirebase();
+			saveStatus = 'saved';
+		} catch (err) {
+			console.error('Manual save failed:', err);
+			saveStatus = 'error';
+		}
+		setTimeout(() => { saveStatus = ''; }, 2000);
 	}
 
 	onAuthStateChanged(auth, async (user) => {
@@ -636,6 +652,34 @@
 	}
 
 	/**
+	 * Update the income amount for the currently selected month.
+	 * If a scheduled change is already active, edit that change; otherwise edit base amount.
+	 * @param {string} sourceId
+	 * @param {number} nextAmount
+	 */
+	function updateIncomeAmountForSelectedMonth(sourceId, nextAmount) {
+		const safeAmount = Number(nextAmount) || 0;
+		incomeSources = incomeSources.map((src) => {
+			if (src.id !== sourceId) return src;
+			const changes = src.changes ?? [];
+			let latestActiveChangeIndex = -1;
+			for (let i = 0; i < changes.length; i++) {
+				const change = changes[i];
+				if (compareYearMonth(change.effectiveYear, change.effectiveMonth, selectedYear, selectedMonth) <= 0) {
+					latestActiveChangeIndex = i;
+				}
+			}
+			if (latestActiveChangeIndex >= 0) {
+				const nextChanges = changes.map((change, i) =>
+					i === latestActiveChangeIndex ? { ...change, amount: safeAmount } : change
+				);
+				return { ...src, changes: nextChanges };
+			}
+			return { ...src, amount: safeAmount };
+		});
+	}
+
+	/**
 	 * @param {BudgetCategory} category
 	 * @param {number} year
 	 * @param {number} month
@@ -851,6 +895,9 @@
 				}}>›</button>
 			</div>
 			<div class="period-actions">
+				<button class="btn-secondary btn-save" on:click={saveManually} disabled={saveStatus === 'saving'} title="Save budget">
+					{#if saveStatus === 'saving'}⏳ Saving…{:else if saveStatus === 'saved'}✓ Saved{:else if saveStatus === 'error'}⚠ Error{:else}💾 Save{/if}
+				</button>
 				<button class="btn-secondary" on:click={exportData} title="Export planner data as JSON">⬇ Export</button>
 				<label class="btn-secondary" title="Import planner data from JSON">
 					⬆ Import
@@ -884,8 +931,8 @@
 								<input
 									class="income-amt-input"
 									type="number"
-									bind:value={src.amount}
-									on:change={() => (incomeSources = [...incomeSources])}
+									value={activeAmount}
+									on:change={(e) => updateIncomeAmountForSelectedMonth(src.id, Number(e.currentTarget.value))}
 								/>
 								<select
 									class="freq-select"
@@ -907,9 +954,6 @@
 										class="paycheck-count"
 										title="Paychecks in {monthNames[selectedMonth]} {selectedYear}"
 									>×{src.startDate ? biweeklyPaychecksInMonth(src.startDate, selectedYear, selectedMonth) : '~2'}</span>
-								{/if}
-								{#if activeAmount !== src.amount}
-									<span class="income-override" title="Scheduled change active">→ {formatAsCurrency(activeAmount)}</span>
 								{/if}
 								<button
 									class="btn-icon-tiny"
@@ -1453,6 +1497,14 @@
 		border-color: var(--color-text-tertiary);
 		color: var(--color-text-primary);
 	}
+	.btn-save[disabled] {
+		opacity: 0.7;
+		cursor: default;
+	}
+	.btn-save:not([disabled]):hover {
+		border-color: var(--color-accent-green);
+		color: var(--color-accent-green);
+	}
 
 	@media (max-width: 767px) {
 		.btn-secondary {
@@ -1509,6 +1561,7 @@
 			padding: 0.5rem 0.6rem;
 			font-size: 0.9rem;
 			min-height: 44px;
+			box-sizing: border-box;
 		}
 	}
 
@@ -1518,6 +1571,8 @@
 		.period-selects .year-input {
 			width: 65px;
 			padding: 0.5rem 0.4rem;
+			height: 44px;
+			box-sizing: border-box;
 		}
 	}
 
