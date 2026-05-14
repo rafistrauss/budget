@@ -212,6 +212,8 @@
 
 	/** @type {ReturnType<typeof setTimeout> | undefined} */
 	let syncDebounceTimer;
+	/** @type {ReturnType<typeof setTimeout> | undefined} */
+	let saveStatusTimer;
 
 	async function syncBudgetToFirebase() {
 		if (!currentUser) return;
@@ -228,6 +230,7 @@
 	}
 
 	async function saveManually() {
+		clearTimeout(saveStatusTimer);
 		saveStatus = 'saving';
 		try {
 			safelySetLocalStorage(STORAGE_KEY, JSON.stringify({ categories, incomeSources, bonuses }));
@@ -238,7 +241,7 @@
 			console.error('Manual save failed:', err);
 			saveStatus = 'error';
 		}
-		setTimeout(() => { saveStatus = ''; }, 2000);
+		saveStatusTimer = setTimeout(() => { saveStatus = ''; }, 2000);
 	}
 
 	onAuthStateChanged(auth, async (user) => {
@@ -895,7 +898,7 @@
 				}}>›</button>
 			</div>
 			<div class="period-actions">
-				<button class="btn-secondary btn-save" on:click={saveManually} disabled={saveStatus === 'saving'} title="Save budget">
+				<button class="btn-secondary btn-save" on:click={saveManually} disabled={saveStatus === 'saving'} title="Save budget" aria-label={saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved' : saveStatus === 'error' ? 'Save error' : 'Save budget'}>
 					{#if saveStatus === 'saving'}⏳ Saving…{:else if saveStatus === 'saved'}✓ Saved{:else if saveStatus === 'error'}⚠ Error{:else}💾 Save{/if}
 				</button>
 				<button class="btn-secondary" on:click={exportData} title="Export planner data as JSON">⬇ Export</button>
