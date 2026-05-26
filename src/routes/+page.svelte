@@ -215,12 +215,13 @@
 	/** @type {ReturnType<typeof setTimeout> | undefined} */
 	let saveStatusTimer;
 
-	async function syncBudgetToFirebase() {
+	async function syncBudgetToFirebase({ throwOnError = false } = {}) {
 		if (!currentUser) return;
 		try {
 			await setDoc(doc(db, 'budgets', currentUser.uid), { categories, incomeSources, bonuses });
 		} catch (err) {
 			console.error('Failed to sync budget to Firebase:', err);
+			if (throwOnError) throw err;
 		}
 	}
 
@@ -235,7 +236,7 @@
 		try {
 			safelySetLocalStorage(STORAGE_KEY, JSON.stringify({ categories, incomeSources, bonuses }));
 			clearTimeout(syncDebounceTimer);
-			await syncBudgetToFirebase();
+			await syncBudgetToFirebase({ throwOnError: true });
 			saveStatus = 'saved';
 		} catch (err) {
 			console.error('Manual save failed:', err);
@@ -850,13 +851,15 @@
 
 		for (const evt of labeledEvents) {
 			const targetId = ensureCategoryByName(evt.label ?? 'Scheduled Expense');
+			const eventWithoutLabel = { ...evt };
+			delete eventWithoutLabel.label;
 			categories = categories.map((c) => {
 				if (c.id !== targetId) return c;
 				return {
 					...c,
 					events: [
 						...(c.events ?? []),
-						(({ label: _label, ...rest }) => rest)(evt)
+						eventWithoutLabel
 					]
 				};
 			});
