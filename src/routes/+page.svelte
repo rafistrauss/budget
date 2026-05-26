@@ -850,9 +850,8 @@
 		if (labeledEvents.length === 0) return;
 
 		for (const evt of labeledEvents) {
-			const targetId = ensureCategoryByName(evt.label ?? 'Scheduled Expense');
-			const eventWithoutLabel = { ...evt };
-			delete eventWithoutLabel.label;
+			const { label, ...eventWithoutLabel } = evt;
+			const targetId = ensureCategoryByName(label ?? 'Scheduled Expense');
 			categories = categories.map((c) => {
 				if (c.id !== targetId) return c;
 				return {
