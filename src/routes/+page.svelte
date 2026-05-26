@@ -52,7 +52,7 @@
 	 */
 
 	/**
-	 * @typedef {{ id: string; name: string; amount: number; year: number; month: number }} Bonus
+	 * @typedef {{ id: string; name: string; amount: number; month: number }} Bonus
 	 */
 
 	let selectedYear = now.getFullYear();
@@ -76,8 +76,7 @@
 	let addingBonus = false;
 	let newBonusName = '';
 	let newBonusAmount = 0;
-	let newBonusYear = now.getFullYear();
-	let newBonusMonth = now.getMonth();
+	let newBonusMonth = selectedMonth;
 
 	// Income scheduled change panel state
 	/** @type {string} */
@@ -163,12 +162,11 @@
 		if (Array.isArray(p?.bonuses)) {
 			bonuses = p.bonuses
 				.filter((/** @type {unknown} */ b) => b && typeof b === 'object')
-				.map((/** @type {{ id?: unknown; name?: unknown; amount?: unknown; year?: unknown; month?: unknown }} */ b, /** @type {number} */ i) => ({
+				.map((/** @type {{ id?: unknown; name?: unknown; amount?: unknown; month?: unknown; year?: unknown }} */ b, /** @type {number} */ i) => ({
 					id: typeof b.id === 'string' && b.id ? b.id : `bonus-${i}`,
 					name: typeof b.name === 'string' && b.name ? b.name : `Bonus ${i + 1}`,
 					amount: Number(b.amount) || 0,
-					year: Number(b.year) || now.getFullYear(),
-					month: Number(b.month) || 0
+					month: Number.isFinite(Number(b.month)) ? Number(b.month) : now.getMonth()
 				}));
 		}
 		// Migrate legacy top-level expenses into a dedicated category events list.
@@ -269,13 +267,23 @@
 	 * @param {number} month 0-indexed
 	 */
 	function biweeklyPaychecksInMonth(startDate, year, month) {
-		const refMs = new Date(startDate + 'T12:00:00').getTime();
-		const firstMs = new Date(year, month, 1, 12, 0, 0).getTime();
-		const lastMs = new Date(year, month + 1, 0, 12, 0, 0).getTime();
-		const interval = 14 * 24 * 60 * 60 * 1000;
-		const nStart = Math.ceil((firstMs - refMs) / interval);
+		const [yy, mm, dd] = startDate.split('-').map(Number);
+		const payday = new Date(yy, (mm || 1) - 1, dd || 1, 12, 0, 0);
+		if (Number.isNaN(payday.getTime())) return 0;
+
+		const monthStart = new Date(year, month, 1, 12, 0, 0);
+		const monthEnd = new Date(year, month + 1, 0, 12, 0, 0);
+
+		while (payday < monthStart) {
+			payday.setDate(payday.getDate() + 14);
+		}
+
 		let count = 0;
-		for (let n = nStart; refMs + n * interval <= lastMs; n++) count++;
+		while (payday <= monthEnd) {
+			count += 1;
+			payday.setDate(payday.getDate() + 14);
+		}
+
 		return count;
 	}
 
@@ -310,16 +318,24 @@
 		return amount;
 	}
 
+	/**
+	 * Recurring bonuses are modeled as annual lump sums and applied on each bonus month.
+	 * @param {number} month 0-indexed
+	 */
+	function recurringBonusForMonth(month) {
+		return bonuses
+			.filter((b) => Number(b.month) === month)
+			.reduce((acc, b) => acc + (Number(b.amount) || 0), 0);
+	}
+
 	$: totalMonthlyIncome =
 		incomeSources.reduce((acc, src) => acc + incomeForMonth(src, selectedYear, selectedMonth), 0) +
-		bonuses
-			.filter((b) => b.year === selectedYear && b.month === selectedMonth)
-			.reduce((acc, b) => acc + b.amount, 0);
+		recurringBonusForMonth(selectedMonth);
 
 	$: hasYearlyIncome =
 		incomeSources.some((src) =>
 			Array.from({ length: 12 }, (_, m) => incomeForMonth(src, selectedYear, m)).some((v) => v > 0)
-		) || bonuses.some((b) => b.year === selectedYear && b.amount > 0);
+		) || bonuses.some((b) => b.amount > 0);
 
 	$: {
 		yearlyProjectionView;
@@ -339,9 +355,7 @@
 		annualSavings = Array.from({ length: 12 }, (_, m) => {
 			const income =
 				incomeSources.reduce((acc, src) => acc + incomeForMonth(src, selectedYear, m), 0) +
-				bonuses
-					.filter((b) => b.year === selectedYear && b.month === m)
-					.reduce((acc, b) => acc + b.amount, 0);
+				recurringBonusForMonth(m);
 			const spent = categories.reduce(
 				(acc, cat) => acc + getAmountForMonth(cat, selectedYear, m),
 				0
@@ -462,14 +476,12 @@
 				id: `bonus-${Date.now()}`,
 				name,
 				amount: Number(newBonusAmount) || 0,
-				year: Number(newBonusYear),
 				month: Number(newBonusMonth)
 			}
 		];
 		newBonusName = '';
 		newBonusAmount = 0;
-		newBonusYear = now.getFullYear();
-		newBonusMonth = now.getMonth();
+		newBonusMonth = selectedMonth;
 		addingBonus = false;
 	}
 
@@ -979,34 +991,32 @@
 
 				<!-- Bonuses -->
 				<div class="income-section-header">
-					<span class="summary-sublabel">Bonuses</span>
-					<button class="btn-icon-tiny" title="Add bonus" on:click={() => (addingBonus = !addingBonus)}>
+					<span class="summary-sublabel">Recurring Annual Bonuses</span>
+					<button class="btn-icon-tiny" title="Add annual bonus" on:click={() => (addingBonus = !addingBonus)}>
 						{addingBonus ? '✕' : '+'}
 					</button>
 				</div>
 				{#each bonuses as bonus (bonus.id)}
 					<div class="bonus-row">
 						<input class="income-name-input" type="text" bind:value={bonus.name} on:change={() => (bonuses = [...bonuses])} />
-						<input class="income-amt-input" type="number" bind:value={bonus.amount} on:change={() => (bonuses = [...bonuses])} />
+						<input class="income-amt-input" type="number" bind:value={bonus.amount} placeholder="Annual amount" on:change={() => (bonuses = [...bonuses])} />
 						<select class="freq-select" bind:value={bonus.month} on:change={() => (bonuses = [...bonuses])}>
 							{#each monthNames as mname, i}
 								<option value={i}>{mname.slice(0, 3)}</option>
 							{/each}
 						</select>
-						<input class="bonus-year-input" type="number" bind:value={bonus.year} min="2000" max="2100" on:change={() => (bonuses = [...bonuses])} />
 						<button class="btn-icon-tiny danger" title="Remove bonus" on:click={() => removeBonus(bonus.id, bonus.name)}>✕</button>
 					</div>
 				{/each}
 				{#if addingBonus}
 					<div class="bonus-row">
 						<input type="text" bind:value={newBonusName} placeholder="Name" class="income-name-input" on:keydown={(e) => e.key === 'Enter' && addBonus()} />
-						<input type="number" bind:value={newBonusAmount} placeholder="Amount" class="income-amt-input" on:keydown={(e) => e.key === 'Enter' && addBonus()} />
+						<input type="number" bind:value={newBonusAmount} placeholder="Annual amount" class="income-amt-input" on:keydown={(e) => e.key === 'Enter' && addBonus()} />
 						<select class="freq-select" bind:value={newBonusMonth}>
 							{#each monthNames as mname, i}
 								<option value={i}>{mname.slice(0, 3)}</option>
 							{/each}
 						</select>
-						<input class="bonus-year-input" type="number" bind:value={newBonusYear} min="2000" max="2100" />
 						<button class="btn-icon-tiny confirm" on:click={addBonus}>✓</button>
 					</div>
 				{/if}
@@ -1314,7 +1324,7 @@
 					<tbody>
 						{#each monthNames as name, m}
 							{@const spent = categories.reduce((acc, cat) => acc + getAmountForMonth(cat, selectedYear, m, yearlyProjectionView), 0)}
-							{@const rowIncome = incomeSources.reduce((acc, src) => acc + incomeForMonth(src, selectedYear, m), 0) + bonuses.filter((b) => b.year === selectedYear && b.month === m).reduce((acc, b) => acc + b.amount, 0)}
+							{@const rowIncome = incomeSources.reduce((acc, src) => acc + incomeForMonth(src, selectedYear, m), 0) + recurringBonusForMonth(m)}
 							{@const savings = rowIncome - spent}
 							<tr class:current-month={m === selectedMonth && selectedYear === now.getFullYear()}>
 								<td class="month-cell">{name}</td>
@@ -1338,7 +1348,7 @@
 							</td>
 							{#if hasYearlyIncome}
 								<td class="income-cell">
-									<strong>{formatAsCurrency(Array.from({ length: 12 }, (_, m) => incomeSources.reduce((acc, src) => acc + incomeForMonth(src, selectedYear, m), 0) + bonuses.filter((b) => b.year === selectedYear && b.month === m).reduce((acc, b) => acc + b.amount, 0)).reduce((a, b) => a + b, 0))}</strong>
+									<strong>{formatAsCurrency(Array.from({ length: 12 }, (_, m) => incomeSources.reduce((acc, src) => acc + incomeForMonth(src, selectedYear, m), 0) + recurringBonusForMonth(m)).reduce((a, b) => a + b, 0))}</strong>
 								</td>
 								<td class="savings-cell {savingsClass(annualSavings)}"><strong>{formatAsCurrency(annualSavings)}</strong></td>
 							{/if}
