@@ -856,7 +856,7 @@
 					...c,
 					events: [
 						...(c.events ?? []),
-						{ ...evt, label: undefined }
+						(({ label: _label, ...rest }) => rest)(evt)
 					]
 				};
 			});
