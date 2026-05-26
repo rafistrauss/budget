@@ -87,7 +87,7 @@
 	let incomeChangeAmount = 0;
 
 	let hasLoadedFromStorage = false;
-	/** @type {'' | 'saving' | 'saved' | 'error'} */
+	/** @type {'' | 'saving' | 'saved' | 'saved-locally' | 'error'} */
 	let saveStatus = '';
 
 	/**
@@ -236,8 +236,12 @@
 		try {
 			safelySetLocalStorage(STORAGE_KEY, JSON.stringify({ categories, incomeSources, bonuses }));
 			clearTimeout(syncDebounceTimer);
-			await syncBudgetToFirebase({ throwOnError: true });
-			saveStatus = 'saved';
+			if (currentUser) {
+				await syncBudgetToFirebase({ throwOnError: true });
+				saveStatus = 'saved';
+			} else {
+				saveStatus = 'saved-locally';
+			}
 		} catch (err) {
 			console.error('Manual save failed:', err);
 			saveStatus = 'error';
@@ -900,8 +904,8 @@
 				}}>›</button>
 			</div>
 			<div class="period-actions">
-				<button class="btn-secondary btn-save" on:click={saveManually} disabled={saveStatus === 'saving'} title="Save budget" aria-label={saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved' : saveStatus === 'error' ? 'Save error' : 'Save budget'}>
-					{#if saveStatus === 'saving'}⏳ Saving…{:else if saveStatus === 'saved'}✓ Saved{:else if saveStatus === 'error'}⚠ Error{:else}💾 Save{/if}
+				<button class="btn-secondary btn-save" on:click={saveManually} disabled={saveStatus === 'saving'} title={currentUser ? 'Save and sync to cloud' : 'Save locally (sign in to sync)'} aria-label={saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Synced' : saveStatus === 'saved-locally' ? 'Saved locally' : saveStatus === 'error' ? 'Save error' : 'Save budget'}>
+					{#if saveStatus === 'saving'}⏳ Saving…{:else if saveStatus === 'saved'}✓ Synced{:else if saveStatus === 'saved-locally'}✓ Saved locally{:else if saveStatus === 'error'}⚠ Error{:else}💾 Save{/if}
 				</button>
 				<button class="btn-secondary" on:click={exportData} title="Export planner data as JSON">⬇ Export</button>
 				<label class="btn-secondary" title="Import planner data from JSON">
