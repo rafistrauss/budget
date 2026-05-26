@@ -1,6 +1,6 @@
 <script>
 	import { base } from '$app/paths';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 
 	import { formatAsCurrency, safelyGetLocalStorage, safelySetLocalStorage } from '$lib';
 	import { darkMode } from '$lib/darkModeStore.js';
@@ -231,6 +231,7 @@
 	}
 
 	async function saveManually() {
+		if (!hasLoadedFromStorage) return;
 		clearTimeout(saveStatusTimer);
 		saveStatus = 'saving';
 		try {
@@ -249,7 +250,7 @@
 		saveStatusTimer = setTimeout(() => { saveStatus = ''; }, 2000);
 	}
 
-	onAuthStateChanged(auth, async (user) => {
+	const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
 		currentUser = user;
 		if (user) {
 			const snap = await getDoc(doc(db, 'budgets', user.uid));
@@ -278,6 +279,12 @@
 		}
 
 		hasLoadedFromStorage = true;
+	});
+
+	onDestroy(() => {
+		clearTimeout(syncDebounceTimer);
+		clearTimeout(saveStatusTimer);
+		unsubscribeAuth();
 	});
 
 	$: if (hasLoadedFromStorage) {
@@ -904,7 +911,7 @@
 				}}>›</button>
 			</div>
 			<div class="period-actions">
-				<button class="btn-secondary btn-save" on:click={saveManually} disabled={saveStatus === 'saving'} title={currentUser ? 'Save and sync to cloud' : 'Save locally (sign in to sync)'} aria-label={saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Synced' : saveStatus === 'saved-locally' ? 'Saved locally' : saveStatus === 'error' ? 'Save error' : 'Save budget'}>
+				<button class="btn-secondary btn-save" on:click={saveManually} disabled={!hasLoadedFromStorage || saveStatus === 'saving'} title={currentUser ? 'Save and sync to cloud' : 'Save locally (sign in to sync)'} aria-label={saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Synced' : saveStatus === 'saved-locally' ? 'Saved locally' : saveStatus === 'error' ? 'Save error' : 'Save budget'}>
 					{#if saveStatus === 'saving'}⏳ Saving…{:else if saveStatus === 'saved'}✓ Synced{:else if saveStatus === 'saved-locally'}✓ Saved locally{:else if saveStatus === 'error'}⚠ Error{:else}💾 Save{/if}
 				</button>
 				<button class="btn-secondary" on:click={exportData} title="Export planner data as JSON">⬇ Export</button>
