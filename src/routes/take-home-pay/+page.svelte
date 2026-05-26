@@ -1017,7 +1017,7 @@
 			flex-direction: column;
 		}
 		.main {
-			padding: 1rem;
+			padding: 1rem 1rem 5rem; /* bottom clearance for auth bar */
 		}
 		.persons-grid {
 			grid-template-columns: 1fr;

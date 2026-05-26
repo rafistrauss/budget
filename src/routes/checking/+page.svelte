@@ -1,8 +1,10 @@
 <script>
 	import dayjs from 'dayjs';
-	import { initializeApp } from 'firebase/app';
-	import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
-	import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
+	import { onAuthStateChanged } from 'firebase/auth';
+	import { doc, setDoc, getDoc } from 'firebase/firestore';
+	import { auth, db } from '$lib/firebase.js';
+	import { darkMode } from '$lib/darkModeStore.js';
+	import AuthBar from '$lib/AuthBar.svelte';
 	import ChaseLogo from '$lib/ChaseLogo.svelte';
 	import TargetLogo from '$lib/TargetLogo.svelte';
 	import AmazonLogo from '$lib/AmazonLogo.svelte';
@@ -12,25 +14,10 @@
 
 	const easternTimezone = 'America/New_York'; // Set timezone to Eastern
 
-	const firebaseConfig = {
-		apiKey: 'AIzaSyC_wqKaOmHf0Nq31JOZtCt3pSQN_m1FOLk',
-		authDomain: 'budget-e231f.firebaseapp.com',
-		projectId: 'budget-e231f',
-		storageBucket: 'budget-e231f.appspot.com',
-		messagingSenderId: '324153005171',
-		appId: '1:324153005171:web:1a3196daf6a3b148b94606'
-	};
-
-	const app = initializeApp(firebaseConfig);
-	const auth = getAuth(app);
-	const db = getFirestore(app);
-
 	/**
 	 * @type {import("firebase/auth").User | null}
 	 */
 	let currentUser = null;
-	let email = '';
-	let password = '';
 
 	/**
 	 * @type {string | number | null}
@@ -195,29 +182,7 @@
 		}
 	}
 
-	function signIn() {
-		if (!email || !password) return alert('Email and password are required');
-		signInWithEmailAndPassword(auth, email, password)
-			.then((userCredential) => {
-				currentUser = userCredential.user;
-			})
-			.catch((err) => {
-				console.error(err);
-				alert('Failed to sign in');
-			});
-	}
 
-	function logOut() {
-		auth
-			.signOut()
-			.then(() => {
-				currentUser = null;
-				console.log('User signed out successfully');
-			})
-			.catch((error) => {
-				console.error('Error signing out:', error);
-			});
-	}
 
 	/**
 	 * @param {number} index
@@ -752,8 +717,9 @@
 	});
 </script>
 
-<div class="app">
+<div class="app" class:dark-mode={$darkMode}>
 	<Nav />
+	<AuthBar {currentUser} />
 	<main>
 	<h1>Account Balance Tracker</h1>
 
@@ -781,27 +747,6 @@
 			</p>
 		</div>
 	</div>
-
-	{#if !currentUser}
-		<div>
-			<h2>Sign In</h2>
-			<form on:submit|preventDefault={signIn}>
-				<label>
-					Email:
-					<input type="email" bind:value={email} required />
-				</label>
-				<label>
-					Password:
-					<input type="password" bind:value={password} required />
-				</label>
-				<button type="submit">Sign In</button>
-			</form>
-		</div>
-	{/if}
-
-	{#if currentUser}
-		<button on:click={logOut}>Log Out</button>
-	{/if}
 
 	{#if suggestCredit()}
 		<div class="suggestion">
@@ -982,6 +927,7 @@
 	<div class="accounts-tables-container">
 		<div class="account-section">
 			<h2>Checking Account Transactions</h2>
+			<div class="table-scroll">
 			<table class="transactions-table checking-table">
 				<thead>
 					<tr>
@@ -1035,9 +981,11 @@
 					{/each}
 				</tbody>
 			</table>
+			</div>
 		</div>
 		<div class="account-section">
 			<h2>Savings Account Transactions</h2>
+			<div class="table-scroll">
 			<table class="transactions-table savings-table">
 				<thead>
 					<tr>
@@ -1072,51 +1020,199 @@
 					{/each}
 				</tbody>
 			</table>
+			</div>
 		</div>
 	</div>
 	</main>
 </div>
 
 <style>
+	/* ── Layout ── */
 	.app {
 		display: flex;
 		min-height: 100vh;
+		background: var(--color-bg);
+		color: var(--color-text-primary);
 		font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+		transition: background 0.2s, color 0.2s;
 	}
 
 	main {
 		flex: 1;
 		min-width: 0;
-		padding: 1.5rem 2rem;
+		width: 100%;
+		padding: 1.5rem 2rem 3rem;
 	}
+
+	h1 {
+		font-size: 1.5rem;
+		font-weight: 700;
+		color: var(--color-text-primary);
+		margin: 0 0 1.25rem;
+		transition: color 0.2s;
+	}
+
+	h2 {
+		font-size: 1rem;
+		font-weight: 600;
+		color: var(--color-text-primary);
+		margin: 0 0 0.75rem;
+		transition: color 0.2s;
+	}
+
+	/* ── Negative / flag ── */
 	.negative {
-		color: red;
+		color: #e05454;
 	}
+
+	:global(.dark-mode) .negative {
+		color: #ff6b6b;
+	}
+
 	.flag {
 		color: orange;
 	}
 
-	.button-group {
-		margin-bottom: 1rem;
+	/* ── Account summary cards ── */
+	.accounts-container {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 1rem;
+		margin-bottom: 1.5rem;
 	}
 
-	.shortcut-buttons {
+	.account-summary {
+		padding: 1rem 1.25rem;
+		border-radius: 12px;
+		background: var(--color-surface);
+		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+		border-left: 4px solid transparent;
+		transition: background 0.2s;
+	}
+
+	:global(.dark-mode) .account-summary {
+		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+	}
+
+	.account-summary.checking { border-left-color: var(--color-accent-blue); }
+	.account-summary.savings  { border-left-color: #50c878; }
+
+	.account-summary p {
+		margin: 0.25rem 0;
+		font-size: 0.9rem;
+		color: var(--color-text-secondary);
+		transition: color 0.2s;
+	}
+
+	.account-summary strong {
+		color: var(--color-text-primary);
+	}
+
+	/* ── Suggestion ── */
+	.suggestion {
+		padding: 0.75rem 1rem;
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: 8px;
+		margin-bottom: 1rem;
+		font-size: 0.9rem;
+		transition: background 0.2s, border-color 0.2s;
+	}
+
+	.suggestion p { margin: 0; }
+
+	/* ── Form ── */
+	form {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+		gap: 0.75rem;
+		align-items: end;
+		background: var(--color-surface);
+		padding: 1rem;
+		border-radius: 12px;
+		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+		margin-bottom: 1rem;
+		transition: background 0.2s;
+	}
+
+	:global(.dark-mode) form {
+		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+	}
+
+	label {
 		display: flex;
-		flex-wrap: wrap;
-		gap: 0.5rem;
-		margin-bottom: 1rem;
+		flex-direction: column;
+		gap: 0.3rem;
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--color-text-secondary);
+		transition: color 0.2s;
 	}
 
+	label input,
+	label select {
+		padding: 0.45rem 0.7rem;
+		border: 1px solid var(--color-border);
+		border-radius: 8px;
+		background: var(--color-bg);
+		color: var(--color-text-primary);
+		font-size: 0.95rem;
+		transition: background 0.2s, color 0.2s, border-color 0.2s;
+	}
+
+	label input:focus,
+	label select:focus {
+		outline: none;
+		border-color: var(--color-accent-blue);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent-blue) 15%, transparent);
+	}
+
+	/* ── Amount display ── */
+	.amount-display {
+		font-size: 1.4rem;
+		font-weight: 700;
+		font-family: 'Courier New', monospace;
+		color: var(--color-text-primary);
+		background: var(--color-bg);
+		border: 2px solid var(--color-border);
+		border-radius: 8px;
+		padding: 0.4rem 0.75rem;
+		text-align: right;
+		width: 100%;
+		box-sizing: border-box;
+		caret-color: transparent;
+		user-select: none;
+		outline: none;
+		transition: border-color 0.2s, box-shadow 0.2s, background 0.2s, color 0.2s;
+	}
+
+	.amount-display:focus {
+		border-color: var(--color-accent-blue);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent-blue) 20%, transparent);
+	}
+
+	/* ── Buttons ── */
 	button {
-		background-color: #f0f0f0;
-		border: 1px solid #ccc;
-		border-radius: 4px;
-		padding: 0.5rem 1rem;
+		padding: 0.45rem 0.85rem;
+		border: 1px solid var(--color-border);
+		border-radius: 8px;
+		background: var(--color-surface);
+		color: var(--color-text-primary);
+		font-size: 0.85rem;
+		font-weight: 500;
 		cursor: pointer;
-		transition: background-color 0.3s;
+		transition: background 0.15s, border-color 0.15s, color 0.15s;
 		display: inline-flex;
 		align-items: center;
 		gap: 0.5rem;
+		white-space: nowrap;
+	}
+
+	button:hover {
+		background: var(--color-bg);
+		border-color: var(--color-text-tertiary);
 	}
 
 	button :global(svg) {
@@ -1124,87 +1220,128 @@
 		flex-shrink: 0;
 	}
 
-	button:hover {
-		background-color: #e0e0e0;
-	}
-
 	button.addressed {
 		opacity: 0.4;
-		background-color: #d3d3d3;
-		color: #666;
-		position: relative;
 	}
 
 	button.addressed:hover {
-		opacity: 0.5;
-		background-color: #c0c0c0;
+		opacity: 0.55;
 	}
 
 	.clear-button {
-		background-color: #ffcccc;
-		border: 1px solid #ff9999;
-		border-radius: 4px;
-		padding: 0.5rem 1rem;
-		cursor: pointer;
-		transition: background-color 0.3s;
+		background: #ffcccc;
+		border-color: #ff9999;
+		color: #8b0000;
 	}
 
-	.clear-button:hover {
-		background-color: #ffb3b3;
+	.clear-button:hover { background: #ffb3b3; }
+
+	:global(.dark-mode) .clear-button {
+		background: #4a1a1a;
+		border-color: #7a3030;
+		color: #ff9999;
 	}
+
+	:global(.dark-mode) .clear-button:hover { background: #5a2020; }
 
 	.backup-button {
-		background-color: #cce5ff;
-		border: 1px solid #99ccff;
-		border-radius: 4px;
-		padding: 0.5rem 1rem;
-		cursor: pointer;
-		transition: background-color 0.3s;
+		background: #cce5ff;
+		border-color: #99ccff;
+		color: #1a4a7a;
 	}
 
-	.backup-button:hover {
-		background-color: #b3d9ff;
+	.backup-button:hover { background: #b3d9ff; }
+
+	:global(.dark-mode) .backup-button {
+		background: #1a3550;
+		border-color: #2a5070;
+		color: #7ab8f5;
 	}
 
-	.import-file-input {
-		display: none;
+	:global(.dark-mode) .backup-button:hover { background: #234468; }
+
+	.credit-button {
+		background: #e6f9e6;
+		border-color: #8fd88f;
+		color: #217821;
 	}
 
-	form {
+	.credit-button:hover { background: #d0f5d0; }
+
+	:global(.dark-mode) .credit-button {
+		background: #1a3a1a;
+		border-color: #3a6a3a;
+		color: #7dc87d;
+	}
+
+	:global(.dark-mode) .credit-button:hover { background: #234a23; }
+
+	.import-file-input { display: none; }
+
+	/* ── Button groups ── */
+	.button-group,
+	.shortcut-buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
 		margin-bottom: 1rem;
 	}
 
-	.amount-display {
-		font-size: 1.6rem;
-		font-weight: 700;
-		font-family: 'Courier New', monospace;
-		color: #1a3a5c;
-		background: #f0f6ff;
-		border: 2px solid #b0c8e8;
+	/* ── Account tables ── */
+	.accounts-tables-container {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 1.5rem;
+		margin-bottom: 2rem;
+	}
+
+	.table-scroll {
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
 		border-radius: 8px;
-		padding: 0.4rem 1rem;
-		text-align: right;
-		min-width: 180px;
-		caret-color: transparent;
-		user-select: none;
-		outline: none;
-		transition: border-color 0.2s, box-shadow 0.2s;
+		border: 1px solid var(--color-border);
+		transition: border-color 0.2s;
 	}
 
-	.amount-display:focus {
-		border-color: #4a90e2;
-		box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
-		background: #fff;
+	.transactions-table {
+		width: 100%;
+		border-collapse: collapse;
+		background: var(--color-surface);
+		font-size: 0.875rem;
+		transition: background 0.2s;
 	}
 
-	ul {
-		list-style-type: none;
-		padding: 0;
+	.transactions-table th,
+	.transactions-table td {
+		border-bottom: 1px solid var(--color-border);
+		padding: 0.5rem 0.65rem;
+		text-align: left;
+		transition: border-color 0.2s;
+		white-space: nowrap;
 	}
 
-	ul li {
-		margin-bottom: 0.5rem;
+	.transactions-table td:last-child,
+	.transactions-table th:last-child {
+		white-space: nowrap;
 	}
+
+	.transactions-table th {
+		background: var(--color-bg);
+		font-weight: 600;
+		font-size: 0.72rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--color-text-secondary);
+		transition: background 0.2s, color 0.2s;
+		position: sticky;
+		top: 0;
+	}
+
+	.transactions-table tr:hover td {
+		background: color-mix(in srgb, var(--color-surface) 90%, var(--color-accent-blue));
+	}
+
+	.transactions-table .flag { margin-left: 0.3rem; }
 
 	.transaction-title {
 		display: inline-flex;
@@ -1217,87 +1354,136 @@
 		flex-shrink: 0;
 	}
 
-	.suggestion {
-		margin-top: 1rem;
-		padding: 1rem;
-		background-color: #f9f9f9;
-		border: 1px solid #ccc;
-		border-radius: 4px;
-	}
-	.credit-button {
-		background-color: #e6f9e6;
-		border: 1px solid #8fd88f;
-		color: #217821;
-	}
-	.credit-button:hover {
-		background-color: #d0f5d0;
-	}
-
-	.accounts-container {
-		display: flex;
-		gap: 2rem;
-		margin-bottom: 2rem;
-	}
-
-	.account-summary {
-		flex: 1;
-		padding: 1rem;
-		border: 2px solid #ccc;
-		border-radius: 8px;
-		background-color: #f9f9f9;
-	}
-
-	.account-summary.checking {
-		border-color: #4a90e2;
-	}
-
-	.account-summary.savings {
-		border-color: #50c878;
-	}
-
-	.account-section {
-		margin-bottom: 2rem;
-	}
-	.accounts-tables-container {
-		display: flex;
-		gap: 2rem;
-		flex-wrap: wrap;
-		margin-bottom: 2rem;
-	}
-	.accounts-tables-container > .account-section {
-		flex: 1 1 350px;
-		min-width: 320px;
-		max-width: 100%;
-	}
-	.transactions-table {
-		width: 100%;
-		border-collapse: collapse;
-		margin-bottom: 1.5rem;
-		background: #fff;
-		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
-	}
-	.transactions-table th,
-	.transactions-table td {
-		border: 1px solid #e0e0e0;
-		padding: 0.5rem 0.75rem;
-		text-align: left;
-	}
-	.transactions-table th {
-		background: #f5f5f5;
-		font-weight: 600;
-	}
-	.transactions-table tr:nth-child(even) {
-		background: #fafbfc;
-	}
-	.transactions-table .flag {
-		margin-left: 0.5rem;
-	}
+	/* ── Responsive ── */
 	@media (max-width: 900px) {
 		.accounts-tables-container {
-			flex-direction: column;
+			grid-template-columns: 1fr;
 		}
-		.accounts-tables-container > .account-section {
-			min-width: 0;
+	}
+
+	@media (max-width: 767px) {
+		main {
+			padding: 0.75rem 0.75rem 5rem; /* extra bottom for auth bar */
+		}
+
+		h1 { font-size: 1.2rem; }
+
+		.accounts-container {
+			grid-template-columns: 1fr 1fr;
+			gap: 0.5rem;
+		}
+
+		.account-summary {
+			padding: 0.75rem;
+		}
+
+		.account-summary p {
+			font-size: 0.8rem;
+		}
+
+		form {
+			grid-template-columns: 1fr 1fr;
+			padding: 0.75rem;
+			gap: 0.6rem;
+		}
+
+		.shortcut-buttons button,
+		.button-group button {
+			font-size: 0.8rem;
+			padding: 0.4rem 0.6rem;
+		}
+
+		/* Card layout for tables on mobile */
+		.table-scroll {
+			border: none;
+			border-radius: 0;
+			overflow-x: visible;
+		}
+
+		.transactions-table thead {
+			display: none;
+		}
+
+		.transactions-table,
+		.transactions-table tbody,
+		.transactions-table tr {
+			display: block;
+			width: 100%;
+		}
+
+		.transactions-table tr {
+			background: var(--color-surface);
+			border: 1px solid var(--color-border);
+			border-radius: 8px;
+			margin-bottom: 0.5rem;
+			padding: 0.5rem 0.75rem;
+			display: grid;
+			grid-template-columns: 1fr auto;
+			gap: 0.15rem 0.5rem;
+			align-items: start;
+		}
+
+		.transactions-table td {
+			border: none;
+			padding: 0;
+			font-size: 0.85rem;
+			white-space: normal;
+		}
+
+		/* Date — small muted text above title */
+		.transactions-table td:nth-child(1) {
+			grid-column: 1 / 2;
+			font-size: 0.72rem;
+			color: var(--color-text-tertiary);
+		}
+
+		/* Type — hidden on mobile */
+		.transactions-table td:nth-child(2) {
+			display: none;
+		}
+
+		/* Amount — right column, 2 rows tall */
+		.transactions-table td:nth-child(3) {
+			grid-column: 2 / 3;
+			grid-row: 1 / 3;
+			text-align: right;
+			font-weight: 600;
+			font-size: 0.95rem;
+			align-self: center;
+		}
+
+		/* Title — main left content */
+		.transactions-table td:nth-child(4) {
+			grid-column: 1 / 2;
+			font-weight: 500;
+		}
+
+		/* Running total */
+		.transactions-table td:nth-child(5) {
+			grid-column: 1 / 3;
+			font-size: 0.78rem;
+			color: var(--color-text-secondary);
+		}
+
+		/* Actions */
+		.transactions-table td:nth-child(6) {
+			grid-column: 1 / 3;
+			display: flex;
+			gap: 0.4rem;
+		}
+
+		.transactions-table tr:hover td {
+			background: transparent;
+		}
+	}
+
+	@media (max-width: 480px) {
+		.accounts-container {
+			grid-template-columns: 1fr;
+		}
+
+		form {
+			grid-template-columns: 1fr;
 		}
 	}
 </style>

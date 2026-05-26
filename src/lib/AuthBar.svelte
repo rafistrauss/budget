@@ -116,26 +116,36 @@
 
 	@media (max-width: 767px) {
 		.auth-bar {
-			position: static;
+			/* Stay fixed but compact — sits below the sticky nav */
+			position: fixed;
+			top: auto;
+			bottom: 0;
+			right: 0;
+			left: 0;
 			border-bottom-left-radius: 0;
-			flex-wrap: wrap;
-			width: stretch;
-			box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-			padding: 0.75rem;
+			border-radius: 0;
+			box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.12);
+			padding: 0.6rem 0.75rem;
 			justify-content: space-between;
-			z-index: 10;
+			z-index: 200;
+		}
+
+		:global(.dark-mode) .auth-bar {
+			box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.4);
 		}
 
 		.auth-form {
-			flex-direction: column;
-			width: 100%;
-			gap: 0.5rem;
+			flex-direction: row;
+			flex: 1;
+			gap: 0.4rem;
 		}
 
 		.auth-form input {
-			width: 100%;
-			padding: 0.5rem;
-			font-size: 1rem;
+			flex: 1;
+			min-width: 0;
+			padding: 0.4rem 0.5rem;
+			font-size: 0.85rem;
+			width: auto;
 		}
 	}
 </style>
