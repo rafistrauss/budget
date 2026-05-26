@@ -216,7 +216,10 @@
 	let saveStatusTimer;
 
 	async function syncBudgetToFirebase({ throwOnError = false } = {}) {
-		if (!currentUser) return;
+		if (!currentUser) {
+			if (throwOnError) throw new Error('No authenticated user to sync budget.');
+			return;
+		}
 		try {
 			await setDoc(doc(db, 'budgets', currentUser.uid), { categories, incomeSources, bonuses });
 		} catch (err) {
@@ -247,7 +250,11 @@
 			console.error('Manual save failed:', err);
 			saveStatus = 'error';
 		}
-		saveStatusTimer = setTimeout(() => { saveStatus = ''; }, 2000);
+		if (saveStatus === 'error') {
+			saveStatusTimer = setTimeout(() => {
+				saveStatus = '';
+			}, 2000);
+		}
 	}
 
 	const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
