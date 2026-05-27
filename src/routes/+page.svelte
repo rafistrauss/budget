@@ -32,7 +32,7 @@
 	 */
 
 	/**
-	 * @typedef {{ id: string; name: string; baseAmount: number; changes: BudgetChange[]; events: CategoryEvent[] }} BudgetCategory
+	 * @typedef {{ id: string; name: string; baseAmount: number; changes: BudgetChange[]; events: CategoryEvent[]; actuals?: Record<string, number> }} BudgetCategory
 	 */
 
 	/** @type {BudgetCategory[]} */
@@ -124,6 +124,7 @@
 	let totalMonthlyBudget = 0;
 	let monthlySavings = 0;
 	let annualSavings = 0;
+	let actualsEditMode = false;
 
 	/**
 	 * @param {unknown} parsed
@@ -292,9 +293,17 @@
 		unsubscribeAuth();
 	});
 
-	$: if (hasLoadedFromStorage) {
+	$: if (hasLoadedFromStorage && !actualsEditMode) {
 		safelySetLocalStorage(STORAGE_KEY, JSON.stringify({ categories, incomeSources, bonuses }));
 		debouncedSyncBudgetToFirebase();
+	}
+
+	async function toggleActualsEditMode() {
+		const wasEditing = actualsEditMode;
+		actualsEditMode = !actualsEditMode;
+		if (wasEditing) {
+			await saveManually();
+		}
 	}
 
 	/**
@@ -405,6 +414,74 @@
 	/** @param {number} val */
 	function savingsClass(val) {
 		return val >= 0 ? 'positive' : 'negative';
+	}
+
+	/**
+	 * @param {number} year
+	 * @param {number} month
+	 */
+	function ymKey(year, month) {
+		return `${year}-${String(month + 1).padStart(2, '0')}`;
+	}
+
+	/**
+	 * @param {BudgetCategory} category
+	 * @param {number} year
+	 * @param {number} month
+	 * @returns {number | null}
+	 */
+	function getActualForCategory(category, year, month) {
+		const value = category.actuals?.[ymKey(year, month)];
+		return typeof value === 'number' && Number.isFinite(value) ? value : null;
+	}
+
+	/**
+	 * @param {string} categoryId
+	 * @param {number} year
+	 * @param {number} month
+	 * @param {number | null} value
+	 */
+	function setActualForCategory(categoryId, year, month, value) {
+		const key = ymKey(year, month);
+		categories = categories.map((cat) => {
+			if (cat.id !== categoryId) return cat;
+			const nextActuals = { ...(cat.actuals ?? {}) };
+			if (value === null) delete nextActuals[key];
+			else nextActuals[key] = value;
+			return Object.keys(nextActuals).length > 0
+				? { ...cat, actuals: nextActuals }
+				: { ...cat, actuals: undefined };
+		});
+	}
+
+	/**
+	 * @param {string} value
+	 * @returns {number | null}
+	 */
+	function parseActualInputValue(value) {
+		const trimmed = value.trim();
+		if (!trimmed) return null;
+		const parsed = Number(trimmed);
+		return Number.isFinite(parsed) ? parsed : null;
+	}
+
+	/**
+	 * @param {string} categoryId
+	 * @param {number} year
+	 * @param {number} month
+	 * @param {Event} event
+	 */
+	function handleCategoryActualChange(categoryId, year, month, event) {
+		const input = /** @type {HTMLInputElement} */ (event.currentTarget);
+		setActualForCategory(categoryId, year, month, parseActualInputValue(input.value));
+	}
+
+	/**
+	 * @param {number} a
+	 * @param {number} b
+	 */
+	function amountsDiffer(a, b) {
+		return Math.abs(a - b) > 0.005;
 	}
 
 	function exportData() {
@@ -789,7 +866,7 @@
 		return /** @type {BudgetCategory[]} */ (unknownCategories
 			.map((rawCategory, index) => {
 				if (!rawCategory || typeof rawCategory !== 'object') return null;
-				const candidate = /** @type {{ id?: unknown; name?: unknown; baseAmount?: unknown; changes?: unknown[]; events?: unknown[] }} */ (rawCategory);
+				const candidate = /** @type {{ id?: unknown; name?: unknown; baseAmount?: unknown; changes?: unknown[]; events?: unknown[]; actuals?: unknown }} */ (rawCategory);
 				const name =
 					typeof candidate.name === 'string' && candidate.name.trim()
 						? candidate.name
@@ -830,11 +907,33 @@
 					}
 				}
 
-				const normalized = { id, name, baseAmount: Number(candidate.baseAmount) || 0, changes, events };
+				const actuals = normalizeMonthlyActualsRecord(candidate.actuals);
+				const normalized = {
+					id,
+					name,
+					baseAmount: Number(candidate.baseAmount) || 0,
+					changes,
+					events,
+					...(Object.keys(actuals).length > 0 ? { actuals } : {})
+				};
 				accumulated.push(normalized);
 				return normalized;
 			})
 			.filter(Boolean));
+	}
+
+	/**
+	 * @param {unknown} recordLike
+	 * @returns {Record<string, number>}
+	 */
+	function normalizeMonthlyActualsRecord(recordLike) {
+		if (!recordLike || typeof recordLike !== 'object' || Array.isArray(recordLike)) return {};
+		const next = /** @type {Record<string, number>} */ ({});
+		for (const [key, raw] of Object.entries(/** @type {Record<string, unknown>} */ (recordLike))) {
+			const numeric = Number(raw);
+			if (Number.isFinite(numeric)) next[key] = numeric;
+		}
+		return next;
 	}
 
 	/**
@@ -1164,13 +1263,20 @@
 			<div class="section-header">
 				<h2>Spending Categories</h2>
 				<div class="section-actions">
-					<label class="projection-view">
-						<span>Yearly Payments View</span>
-						<select bind:value={yearlyProjectionView}>
-							<option value="lump-sum">Lump Sum</option>
-							<option value="amortized">Amortized</option>
-						</select>
-					</label>
+					<button class="btn-secondary" on:click={toggleActualsEditMode}>
+						{actualsEditMode ? 'Done Editing' : 'Edit Actuals'}
+					</button>
+					<fieldset class="projection-view" aria-label="Yearly Payments View">
+						<legend>Yearly Payments View</legend>
+						<label class="projection-option">
+							<input type="radio" bind:group={yearlyProjectionView} value="lump-sum" />
+							<span>Lump Sum</span>
+						</label>
+						<label class="projection-option">
+							<input type="radio" bind:group={yearlyProjectionView} value="amortized" />
+							<span>Amortized</span>
+						</label>
+					</fieldset>
 					<button class="btn-add" on:click={() => (addingCategory = !addingCategory)}>
 						{addingCategory ? '✕ Cancel' : '+ Add Category'}
 					</button>
@@ -1215,6 +1321,9 @@
 					{@const pct = totalMonthlyIncome > 0 ? Math.round((row.activeAmount / totalMonthlyIncome) * 100) : null}
 					{@const scheduledEventAmount = getCategoryEventAmountForMonth(row.category, selectedYear, selectedMonth, yearlyProjectionView)}
 					{@const projectedRow = isProjectedCategory(row.category)}
+					{@const actualAmount = getActualForCategory(row.category, selectedYear, selectedMonth)}
+					{@const actualVariance = actualAmount === null ? 0 : actualAmount - row.activeAmount}
+					{@const showActualSummary = actualAmount !== null && amountsDiffer(actualAmount, row.activeAmount)}
 
 					<div class="category-item" class:expanded={isExpanded}>
 						<div class="category-row">
@@ -1226,14 +1335,39 @@
 								{/if}
 							</div>
 							<div class="category-amount-cell">
-								<input
-									class="amount-input"
-									type="number"
-									value={row.activeAmount}
-									disabled={projectedRow}
-									on:change={(e) => updateCategoryAmountForSelectedMonth(row.category.id, Number(e.currentTarget.value))}
-									aria-label="Amount for {row.category.name}"
-								/>
+								<div class="amount-stack">
+									<div class="amount-entry">
+										<span class="amount-label">Budget</span>
+										<input
+											class="amount-input"
+											type="number"
+											value={row.activeAmount}
+											disabled={projectedRow}
+											on:change={(e) => updateCategoryAmountForSelectedMonth(row.category.id, Number(e.currentTarget.value))}
+											aria-label="Budget amount for {row.category.name}"
+										/>
+									</div>
+									{#if actualsEditMode}
+										<div class="amount-entry actual-entry">
+											<span class="amount-label">Actual</span>
+											<input
+												class="amount-input actual-month-input"
+												type="number"
+												value={actualAmount === null ? '' : actualAmount}
+												on:change={(e) => handleCategoryActualChange(row.category.id, selectedYear, selectedMonth, e)}
+												placeholder="Actual"
+												aria-label="Actual amount for {row.category.name}"
+											/>
+										</div>
+									{:else if showActualSummary}
+										<div class="category-actual-summary">
+											<span class="category-actual-value">Actual {formatAsCurrency(actualAmount)}</span>
+											<span class="category-variance" class:over={actualVariance > 0} class:under={actualVariance < 0}>
+												Δ {formatAsCurrency(actualVariance)}
+											</span>
+										</div>
+									{/if}
+								</div>
 							</div>
 							<div class="category-actions">
 								<button
@@ -2171,33 +2305,44 @@
 		gap: 0.4rem;
 		font-size: 0.85rem;
 		color: var(--color-text-light);
+		border: 0;
+		padding: 0;
+		margin: 0;
 		transition: color 0.2s;
+	}
+
+	.projection-view legend {
+		padding: 0;
+		margin: 0;
+		font-size: 0.85rem;
+		font-weight: 500;
+	}
+
+	.projection-option {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-size: 0.82rem;
+		color: var(--color-text-secondary);
+	}
+
+	.projection-option input {
+		margin: 0;
+		accent-color: var(--color-accent-blue);
 	}
 
 	@media (max-width: 767px) {
 		.projection-view {
 			width: 100%;
 			justify-content: flex-start;
+			flex-wrap: wrap;
 			order: 3;
 			font-size: 0.8rem;
 		}
-	}
 
-	.projection-view select {
-		padding: 0.2rem 0.35rem;
-		border: 1px solid var(--color-border);
-		border-radius: 6px;
-		font-size: 0.82rem;
-		background: var(--color-surface);
-		color: var(--color-text-primary);
-		transition: background 0.2s, color 0.2s, border-color 0.2s;
-	}
-
-	@media (max-width: 767px) {
-		.projection-view select {
-			padding: 0.35rem 0.5rem;
-			font-size: 0.85rem;
-			min-height: 36px;
+		.projection-view legend {
+			width: 100%;
+			font-size: 0.8rem;
 		}
 	}
 
@@ -2416,7 +2561,8 @@
 	}
 
 	.category-amount-cell {
-		display: contents;
+		display: block;
+		width: 100%;
 	}
 
 	@media (max-width: 767px) {
@@ -2427,6 +2573,32 @@
 			width: 100%;
 			margin-right: 0.5rem;
 		}
+	}
+
+	.amount-stack {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+
+	.amount-entry {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+	}
+
+	.amount-label {
+		font-size: 0.68rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: var(--color-text-tertiary);
+		text-align: right;
+	}
+
+	.actual-entry {
+		padding-top: 0.1rem;
+		border-top: 1px solid var(--color-border);
 	}
 
 	.amount-input {
@@ -2453,6 +2625,51 @@
 			font-size: 1rem;
 			min-height: 44px;
 			box-sizing: border-box;
+		}
+	}
+
+	.actual-month-input {
+		background: var(--color-bg-light);
+	}
+
+	.category-actual-summary {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 0.08rem;
+		padding-top: 0.1rem;
+		border-top: 1px solid var(--color-border);
+	}
+
+	.category-actual-value {
+		font-size: 0.8rem;
+		font-weight: 600;
+		line-height: 1.2;
+		color: var(--color-text-secondary);
+	}
+
+	.category-variance {
+		font-size: 0.74rem;
+		font-weight: 600;
+		line-height: 1.2;
+		color: var(--color-text-tertiary);
+	}
+
+	.category-variance.over {
+		color: var(--color-accent-red);
+	}
+
+	.category-variance.under {
+		color: var(--color-accent-green);
+	}
+
+	@media (max-width: 767px) {
+		.amount-label {
+			text-align: left;
+		}
+
+		.category-actual-summary {
+			align-items: flex-start;
 		}
 	}
 
@@ -2722,6 +2939,35 @@
 	.annual-table-wrap {
 		overflow-x: auto;
 		-webkit-overflow-scrolling: touch;
+		scrollbar-color: var(--color-text-tertiary) var(--color-bg-light);
+	}
+
+	.annual-table-wrap::-webkit-scrollbar {
+		height: 12px;
+	}
+
+	.annual-table-wrap::-webkit-scrollbar-track {
+		background: var(--color-bg-light);
+		border-radius: 999px;
+	}
+
+	.annual-table-wrap::-webkit-scrollbar-thumb {
+		background: var(--color-text-tertiary);
+		border-radius: 999px;
+		border: 2px solid var(--color-bg-light);
+	}
+
+	:global(.dark-mode) .annual-table-wrap {
+		scrollbar-color: var(--color-text-secondary) var(--color-bg-lighter);
+	}
+
+	:global(.dark-mode) .annual-table-wrap::-webkit-scrollbar-track {
+		background: var(--color-bg-lighter);
+	}
+
+	:global(.dark-mode) .annual-table-wrap::-webkit-scrollbar-thumb {
+		background: var(--color-text-secondary);
+		border-color: var(--color-bg-lighter);
 	}
 
 	@media (max-width: 767px) {
@@ -2761,6 +3007,39 @@
 
 	.annual-table th:first-child,
 	.annual-table td:first-child { text-align: left; }
+
+	@media (min-width: 768px) {
+		.annual-table thead th:first-child,
+		.annual-table tbody td:first-child,
+		.annual-table tfoot td:first-child {
+			position: sticky;
+			left: 0;
+		}
+
+		.annual-table thead th:first-child {
+			z-index: 4;
+			box-shadow: 4px 0 6px -6px rgba(0, 0, 0, 0.2);
+		}
+
+		.annual-table tbody td:first-child {
+			z-index: 2;
+			background: var(--color-surface);
+			box-shadow: 4px 0 6px -6px rgba(0, 0, 0, 0.2);
+		}
+
+		.annual-table tfoot td:first-child {
+			z-index: 3;
+			box-shadow: 4px 0 6px -6px rgba(0, 0, 0, 0.2);
+		}
+
+		.current-month .month-cell {
+			background: #f0f5ff;
+		}
+
+		:global(.dark-mode) .current-month .month-cell {
+			background: #1f3a5f;
+		}
+	}
 
 	.annual-table thead th {
 		font-size: 0.8rem;
