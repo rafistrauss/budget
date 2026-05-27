@@ -125,6 +125,8 @@
 	let monthlySavings = 0;
 	let annualSavings = 0;
 	let actualsEditMode = false;
+	/** @type {Record<string, string>} */
+	let currencyInputDrafts = {};
 
 	/**
 	 * @param {unknown} parsed
@@ -459,10 +461,87 @@
 	 * @returns {number | null}
 	 */
 	function parseActualInputValue(value) {
-		const trimmed = value.trim();
-		if (!trimmed) return null;
+		return parseCurrencyInputValue(value, { allowEmpty: true });
+	}
+
+	/**
+	 * @param {string} value
+	 * @param {{ allowEmpty?: boolean }} [options]
+	 * @returns {number | null}
+	 */
+	function parseCurrencyInputValue(value, { allowEmpty = false } = {}) {
+		const normalized = value.replace(/[^\d.-]/g, '').replace(/(?!^)-/g, '');
+		const trimmed = normalized.trim();
+		if (!trimmed) return allowEmpty ? null : 0;
 		const parsed = Number(trimmed);
-		return Number.isFinite(parsed) ? parsed : null;
+		if (!Number.isFinite(parsed)) return allowEmpty ? null : 0;
+		return parsed;
+	}
+
+	/**
+	 * @param {number | null | undefined} value
+	 * @param {{ allowEmpty?: boolean }} [options]
+	 */
+	function formatCurrencyInputValue(value, { allowEmpty = false } = {}) {
+		if (value === null || value === undefined) {
+			return allowEmpty ? '' : formatAsCurrency(0);
+		}
+		return formatAsCurrency(Number(value) || 0);
+	}
+
+	/**
+	 * @param {string} fieldId
+	 * @param {number | null | undefined} value
+	 * @param {{ allowEmpty?: boolean }} [options]
+	 */
+	function getCurrencyInputDisplayValue(fieldId, value, { allowEmpty = false } = {}) {
+		return fieldId in currencyInputDrafts
+			? currencyInputDrafts[fieldId]
+			: formatCurrencyInputValue(value, { allowEmpty });
+	}
+
+	/**
+	 * @param {string} fieldId
+	 * @param {number | null | undefined} value
+	 * @param {{ allowEmpty?: boolean }} [options]
+	 */
+	function beginCurrencyInputEdit(fieldId, value, { allowEmpty = false } = {}) {
+		currencyInputDrafts = {
+			...currencyInputDrafts,
+			[fieldId]: value === null || value === undefined
+				? ''
+				: allowEmpty && value === 0
+					? '0'
+					: String(value)
+		};
+	}
+
+	/**
+	 * @param {string} fieldId
+	 * @param {Event} event
+	 * @param {(value: number | null) => void} apply
+	 * @param {{ allowEmpty?: boolean }} [options]
+	 */
+	function handleCurrencyInput(fieldId, event, apply, { allowEmpty = false } = {}) {
+		const input = /** @type {HTMLInputElement} */ (event.currentTarget);
+		currencyInputDrafts = {
+			...currencyInputDrafts,
+			[fieldId]: input.value
+		};
+		apply(parseCurrencyInputValue(input.value, { allowEmpty }));
+	}
+
+	/**
+	 * @param {string} fieldId
+	 * @param {Event} event
+	 * @param {(value: number | null) => void} apply
+	 * @param {{ allowEmpty?: boolean }} [options]
+	 */
+	function commitCurrencyInput(fieldId, event, apply, { allowEmpty = false } = {}) {
+		handleCurrencyInput(fieldId, event, apply, { allowEmpty });
+		const nextDrafts = { ...currencyInputDrafts };
+		delete nextDrafts[fieldId];
+		currencyInputDrafts = nextDrafts;
 	}
 
 	/**
@@ -604,6 +683,13 @@
 	function removeBonus(id, name) {
 		if (!confirm(`Delete bonus "${name}"? This cannot be undone.`)) return;
 		bonuses = bonuses.filter((b) => b.id !== id);
+	}
+
+	/** @param {string} bonusId @param {number | null} amount */
+	function updateBonusAmount(bonusId, amount) {
+		bonuses = bonuses.map((bonus) =>
+			bonus.id === bonusId ? { ...bonus, amount: Number(amount) || 0 } : bonus
+		);
 	}
 
 	function addCategory() {
@@ -1064,9 +1150,12 @@
 								/>
 								<input
 									class="income-amt-input"
-									type="number"
-									value={activeAmount}
-									on:change={(e) => updateIncomeAmountForSelectedMonth(src.id, Number(e.currentTarget.value))}
+									type="text"
+									inputmode="decimal"
+									value={getCurrencyInputDisplayValue(`income-amount:${src.id}`, activeAmount)}
+									on:focus={() => beginCurrencyInputEdit(`income-amount:${src.id}`, activeAmount)}
+									on:input={(e) => handleCurrencyInput(`income-amount:${src.id}`, e, (value) => updateIncomeAmountForSelectedMonth(src.id, Number(value) || 0))}
+									on:blur={(e) => commitCurrencyInput(`income-amount:${src.id}`, e, (value) => updateIncomeAmountForSelectedMonth(src.id, Number(value) || 0))}
 								/>
 								<select
 									class="freq-select"
@@ -1131,7 +1220,15 @@
 										</label>
 										<label class="field">
 											<span>New amount per {src.frequency === 'biweekly' ? 'paycheck' : 'month'} ($)</span>
-											<input type="number" bind:value={incomeChangeAmount} placeholder="Amount" />
+											<input
+												type="text"
+												inputmode="decimal"
+												value={getCurrencyInputDisplayValue(`income-change:${src.id}`, incomeChangeAmount)}
+												placeholder="Amount"
+												on:focus={() => beginCurrencyInputEdit(`income-change:${src.id}`, incomeChangeAmount)}
+												on:input={(e) => handleCurrencyInput(`income-change:${src.id}`, e, (value) => (incomeChangeAmount = Number(value) || 0))}
+												on:blur={(e) => commitCurrencyInput(`income-change:${src.id}`, e, (value) => (incomeChangeAmount = Number(value) || 0))}
+											/>
 										</label>
 										<button class="btn-primary" on:click={addIncomeScheduledChange}>Add change</button>
 									</div>
@@ -1143,7 +1240,17 @@
 				{#if addingIncome}
 					<div class="income-add-row">
 						<input type="text" bind:value={newIncomeName} placeholder="Name" class="income-name-input" on:keydown={(e) => e.key === 'Enter' && addIncomeSource()} />
-						<input type="number" bind:value={newIncomeAmount} placeholder="Amount" class="income-amt-input" on:keydown={(e) => e.key === 'Enter' && addIncomeSource()} />
+						<input
+							type="text"
+							inputmode="decimal"
+							value={getCurrencyInputDisplayValue('new-income-amount', newIncomeAmount)}
+							placeholder="Amount"
+							class="income-amt-input"
+							on:focus={() => beginCurrencyInputEdit('new-income-amount', newIncomeAmount)}
+							on:input={(e) => handleCurrencyInput('new-income-amount', e, (value) => (newIncomeAmount = Number(value) || 0))}
+							on:blur={(e) => commitCurrencyInput('new-income-amount', e, (value) => (newIncomeAmount = Number(value) || 0))}
+							on:keydown={(e) => e.key === 'Enter' && addIncomeSource()}
+						/>
 						<select class="freq-select" bind:value={newIncomeFrequency}>
 							<option value="biweekly">/ 2 wks</option>
 							<option value="monthly">/ mo</option>
@@ -1165,7 +1272,16 @@
 				{#each bonuses as bonus (bonus.id)}
 					<div class="bonus-row">
 						<input class="income-name-input" type="text" bind:value={bonus.name} on:change={() => (bonuses = [...bonuses])} />
-						<input class="income-amt-input" type="number" bind:value={bonus.amount} placeholder="Annual amount" on:change={() => (bonuses = [...bonuses])} />
+						<input
+							class="income-amt-input"
+							type="text"
+							inputmode="decimal"
+							value={getCurrencyInputDisplayValue(`bonus-amount:${bonus.id}`, bonus.amount)}
+							placeholder="Annual amount"
+							on:focus={() => beginCurrencyInputEdit(`bonus-amount:${bonus.id}`, bonus.amount)}
+							on:input={(e) => handleCurrencyInput(`bonus-amount:${bonus.id}`, e, (value) => updateBonusAmount(bonus.id, value))}
+							on:blur={(e) => commitCurrencyInput(`bonus-amount:${bonus.id}`, e, (value) => updateBonusAmount(bonus.id, value))}
+						/>
 						<select class="freq-select" bind:value={bonus.month} on:change={() => (bonuses = [...bonuses])}>
 							{#each monthNames as mname, i}
 								<option value={i}>{mname.slice(0, 3)}</option>
@@ -1177,7 +1293,17 @@
 				{#if addingBonus}
 					<div class="bonus-row">
 						<input type="text" bind:value={newBonusName} placeholder="Name" class="income-name-input" on:keydown={(e) => e.key === 'Enter' && addBonus()} />
-						<input type="number" bind:value={newBonusAmount} placeholder="Annual amount" class="income-amt-input" on:keydown={(e) => e.key === 'Enter' && addBonus()} />
+						<input
+							type="text"
+							inputmode="decimal"
+							value={getCurrencyInputDisplayValue('new-bonus-amount', newBonusAmount)}
+							placeholder="Annual amount"
+							class="income-amt-input"
+							on:focus={() => beginCurrencyInputEdit('new-bonus-amount', newBonusAmount)}
+							on:input={(e) => handleCurrencyInput('new-bonus-amount', e, (value) => (newBonusAmount = Number(value) || 0))}
+							on:blur={(e) => commitCurrencyInput('new-bonus-amount', e, (value) => (newBonusAmount = Number(value) || 0))}
+							on:keydown={(e) => e.key === 'Enter' && addBonus()}
+						/>
 						<select class="freq-select" bind:value={newBonusMonth}>
 							{#each monthNames as mname, i}
 								<option value={i}>{mname.slice(0, 3)}</option>
@@ -1263,9 +1389,6 @@
 			<div class="section-header">
 				<h2>Spending Categories</h2>
 				<div class="section-actions">
-					<button class="btn-secondary" on:click={toggleActualsEditMode}>
-						{actualsEditMode ? 'Done Editing' : 'Edit Actuals'}
-					</button>
 					<fieldset class="projection-view" aria-label="Yearly Payments View">
 						<legend>Yearly Payments View</legend>
 						<label class="projection-option">
@@ -1279,6 +1402,9 @@
 					</fieldset>
 					<button class="btn-add" on:click={() => (addingCategory = !addingCategory)}>
 						{addingCategory ? '✕ Cancel' : '+ Add Category'}
+					</button>
+					<button class="btn-secondary actuals-edit-button" on:click={toggleActualsEditMode}>
+						{actualsEditMode ? 'Done Editing' : 'Edit Actuals'}
 					</button>
 				</div>
 			</div>
@@ -1297,10 +1423,14 @@
 						<option value="yearly">Yearly</option>
 					</select>
 					<input
-						type="number"
-						bind:value={newCategoryAmount}
+						type="text"
+						inputmode="decimal"
+						value={getCurrencyInputDisplayValue('new-category-amount', newCategoryAmount)}
 						placeholder={newCategoryCadence === 'yearly' ? 'Yearly amount' : 'Monthly amount'}
 						class="input"
+						on:focus={() => beginCurrencyInputEdit('new-category-amount', newCategoryAmount)}
+						on:input={(e) => handleCurrencyInput('new-category-amount', e, (value) => (newCategoryAmount = Number(value) || 0))}
+						on:blur={(e) => commitCurrencyInput('new-category-amount', e, (value) => (newCategoryAmount = Number(value) || 0))}
 						on:keydown={(e) => e.key === 'Enter' && addCategory()}
 					/>
 					{#if newCategoryCadence === 'yearly'}
@@ -1335,15 +1465,18 @@
 								{/if}
 							</div>
 							<div class="category-amount-cell">
-								<div class="amount-stack">
+								<div class="amount-stack" class:dual-input={actualsEditMode}>
 									<div class="amount-entry">
 										<span class="amount-label">Budget</span>
 										<input
 											class="amount-input"
-											type="number"
-											value={row.activeAmount}
+											type="text"
+											inputmode="decimal"
+											value={getCurrencyInputDisplayValue(`category-budget:${row.category.id}`, row.activeAmount)}
 											disabled={projectedRow}
-											on:change={(e) => updateCategoryAmountForSelectedMonth(row.category.id, Number(e.currentTarget.value))}
+											on:focus={() => beginCurrencyInputEdit(`category-budget:${row.category.id}`, row.activeAmount)}
+											on:input={(e) => handleCurrencyInput(`category-budget:${row.category.id}`, e, (value) => updateCategoryAmountForSelectedMonth(row.category.id, Number(value) || 0))}
+											on:blur={(e) => commitCurrencyInput(`category-budget:${row.category.id}`, e, (value) => updateCategoryAmountForSelectedMonth(row.category.id, Number(value) || 0))}
 											aria-label="Budget amount for {row.category.name}"
 										/>
 									</div>
@@ -1352,9 +1485,12 @@
 											<span class="amount-label">Actual</span>
 											<input
 												class="amount-input actual-month-input"
-												type="number"
-												value={actualAmount === null ? '' : actualAmount}
-												on:change={(e) => handleCategoryActualChange(row.category.id, selectedYear, selectedMonth, e)}
+												type="text"
+												inputmode="decimal"
+												value={getCurrencyInputDisplayValue(`category-actual:${row.category.id}:${selectedYear}-${selectedMonth}`, actualAmount, { allowEmpty: true })}
+												on:focus={() => beginCurrencyInputEdit(`category-actual:${row.category.id}:${selectedYear}-${selectedMonth}`, actualAmount, { allowEmpty: true })}
+												on:input={(e) => handleCurrencyInput(`category-actual:${row.category.id}:${selectedYear}-${selectedMonth}`, e, (value) => setActualForCategory(row.category.id, selectedYear, selectedMonth, value), { allowEmpty: true })}
+												on:blur={(e) => commitCurrencyInput(`category-actual:${row.category.id}:${selectedYear}-${selectedMonth}`, e, (value) => setActualForCategory(row.category.id, selectedYear, selectedMonth, value), { allowEmpty: true })}
 												placeholder="Actual"
 												aria-label="Actual amount for {row.category.name}"
 											/>
@@ -1492,7 +1628,15 @@
 									{/if}
 									<label class="field">
 										<span>{changeMode === 'monthly' ? 'New amount ($)' : 'Payment amount ($)'}</span>
-										<input type="number" bind:value={changeAmount} placeholder="Amount" />
+										<input
+											type="text"
+											inputmode="decimal"
+											value={getCurrencyInputDisplayValue('category-change-amount', changeAmount)}
+											placeholder="Amount"
+											on:focus={() => beginCurrencyInputEdit('category-change-amount', changeAmount)}
+											on:input={(e) => handleCurrencyInput('category-change-amount', e, (value) => (changeAmount = Number(value) || 0))}
+											on:blur={(e) => commitCurrencyInput('category-change-amount', e, (value) => (changeAmount = Number(value) || 0))}
+										/>
 									</label>
 									<button class="btn-primary" on:click={addScheduledChange}>Add change</button>
 								</div>
@@ -1663,6 +1807,11 @@
 		border-color: var(--color-text-tertiary);
 		color: var(--color-text-primary);
 	}
+
+	.btn-save {
+		height: 36px;
+	}
+
 	.btn-save[disabled] {
 		opacity: 0.7;
 		cursor: default;
@@ -1976,6 +2125,10 @@
 			font-size: 1rem;
 			min-height: 40px;
 		}
+	}
+
+	.actuals-edit-button {
+		min-width: 120px;
 	}
 
 	.freq-select {
@@ -2297,6 +2450,14 @@
 			justify-content: flex-end;
 			gap: 0.5rem;
 		}
+
+		.section-actions > .btn-add {
+			order: 2;
+		}
+
+		.section-actions > .btn-secondary {
+			order: 3;
+		}
 	}
 
 	.projection-view {
@@ -2336,7 +2497,7 @@
 			width: 100%;
 			justify-content: flex-start;
 			flex-wrap: wrap;
-			order: 3;
+			order: 4;
 			font-size: 0.8rem;
 		}
 
@@ -2487,7 +2648,7 @@
 
 	.category-row {
 		display: grid;
-		grid-template-columns: 5px minmax(120px, 1fr) 3.5rem 130px auto;
+		grid-template-columns: 5px minmax(120px, 1fr) 3.5rem auto auto;
 		align-items: center;
 		gap: 0.75rem;
 		padding: 0.65rem 0.9rem 0.65rem 0;
@@ -2581,6 +2742,17 @@
 		gap: 0.35rem;
 	}
 
+	.amount-stack.dual-input {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.5rem;
+		align-items: end;
+	}
+
+	.amount-stack.dual-input .amount-entry {
+		min-width: 0;
+	}
+
 	.amount-entry {
 		display: flex;
 		flex-direction: column;
@@ -2599,6 +2771,11 @@
 	.actual-entry {
 		padding-top: 0.1rem;
 		border-top: 1px solid var(--color-border);
+	}
+
+	.amount-stack.dual-input .actual-entry {
+		padding-top: 0;
+		border-top: 0;
 	}
 
 	.amount-input {
