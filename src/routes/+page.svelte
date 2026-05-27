@@ -123,6 +123,7 @@
 	let monthlyRows = [];
 	let totalMonthlyBudget = 0;
 	let monthlySavings = 0;
+	let annualIncome = 0;
 	let annualSavings = 0;
 	let actualsEditMode = false;
 	/** @type {Record<string, string>} */
@@ -397,6 +398,9 @@
 
 	$: totalMonthlyBudget = monthlyRows.reduce((acc, row) => acc + row.activeAmount, 0);
 	$: monthlySavings = totalMonthlyIncome - totalMonthlyBudget;
+	$: annualIncome = Array.from({ length: 12 }, (_, m) =>
+		incomeSources.reduce((acc, src) => acc + incomeForMonth(src, selectedYear, m), 0) + recurringBonusForMonth(m)
+	).reduce((a, b) => a + b, 0);
 
 	// Annual savings: sum savings for each month of selectedYear
 	$: {
@@ -454,14 +458,6 @@
 				? { ...cat, actuals: nextActuals }
 				: { ...cat, actuals: undefined };
 		});
-	}
-
-	/**
-	 * @param {string} value
-	 * @returns {number | null}
-	 */
-	function parseActualInputValue(value) {
-		return parseCurrencyInputValue(value, { allowEmpty: true });
 	}
 
 	/**
@@ -542,17 +538,6 @@
 		const nextDrafts = { ...currencyInputDrafts };
 		delete nextDrafts[fieldId];
 		currencyInputDrafts = nextDrafts;
-	}
-
-	/**
-	 * @param {string} categoryId
-	 * @param {number} year
-	 * @param {number} month
-	 * @param {Event} event
-	 */
-	function handleCategoryActualChange(categoryId, year, month, event) {
-		const input = /** @type {HTMLInputElement} */ (event.currentTarget);
-		setActualForCategory(categoryId, year, month, parseActualInputValue(input.value));
 	}
 
 	/**
@@ -1339,8 +1324,8 @@
 				<div class="summary-label">Annual Savings ({selectedYear})</div>
 				<div class="summary-amount">{formatAsCurrency(annualSavings)}</div>
 				<div class="summary-sub">
-					{#if totalMonthlyIncome > 0}
-						Across all 12 months
+					{#if annualIncome > 0}
+						{Math.round((annualSavings / annualIncome) * 100)}% of income
 					{:else}
 						Set income above
 					{/if}
