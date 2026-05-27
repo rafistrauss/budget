@@ -317,6 +317,10 @@
 	});
 </script>
 
+<svelte:head>
+	<title>Take Home Pay | Budget Planner</title>
+</svelte:head>
+
 <div class="app" class:dark-mode={$darkMode}>
 	<Nav />
 

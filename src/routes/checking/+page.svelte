@@ -717,6 +717,10 @@
 	});
 </script>
 
+<svelte:head>
+	<title>Checking | Budget Planner</title>
+</svelte:head>
+
 <div class="app" class:dark-mode={$darkMode}>
 	<Nav />
 	<AuthBar {currentUser} />

@@ -1071,6 +1071,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Budget Planner</title>
+</svelte:head>
+
 <div class="app" class:dark-mode={$darkMode}>
 	<Nav />
 
