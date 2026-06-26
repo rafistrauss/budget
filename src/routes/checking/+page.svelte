@@ -913,7 +913,7 @@
 		<button
 			class:addressed={hasAnsheiTuition}
 			on:click={() => {
-				setShortcut('1297', getUpcomingDate(1));
+				setShortcut('1352', getUpcomingDate(5));
 				type = 'debit';
 				title = 'Anshei Tuition';
 			}}>🎓 Anshei Tuition</button
