@@ -338,6 +338,56 @@
 	}
 
 	/**
+	 * @param {string} startDate ISO 'YYYY-MM-DD' of any known payday
+	 * @param {number} year
+	 * @param {number} month 0-indexed
+	 */
+	function biweeklyPayDatesInMonth(startDate, year, month) {
+		const [yy, mm, dd] = startDate.split('-').map(Number);
+		const payday = new Date(yy, (mm || 1) - 1, dd || 1, 12, 0, 0);
+		if (Number.isNaN(payday.getTime())) return [];
+
+		const monthStart = new Date(year, month, 1, 12, 0, 0);
+		const monthEnd = new Date(year, month + 1, 0, 12, 0, 0);
+
+		while (payday < monthStart) {
+			payday.setDate(payday.getDate() + 14);
+		}
+
+		const dates = [];
+		while (payday <= monthEnd) {
+			dates.push(new Date(payday));
+			payday.setDate(payday.getDate() + 14);
+		}
+
+		return dates;
+	}
+
+	/**
+	 * @param {IncomeSource} src
+	 * @param {number} year
+	 * @param {number} month 0-indexed
+	 */
+	function incomeDatesForMonth(src, year, month) {
+		if (src.frequency === 'monthly') {
+			return [new Date(year, month, 1, 12, 0, 0)];
+		}
+
+		if (!src.startDate) return [];
+		return biweeklyPayDatesInMonth(src.startDate, year, month);
+	}
+
+	/**
+	 * @param {Date} date
+	 */
+	function formatIncomeDate(date) {
+		return date.toLocaleDateString('en-US', {
+			month: 'short',
+			day: 'numeric'
+		});
+	}
+
+	/**
 	 * @param {IncomeSource} src
 	 * @param {number} year
 	 * @param {number} month 0-indexed
@@ -1129,6 +1179,7 @@
 					{#each incomeSources as src (src.id)}
 						{@const isIncomeExpanded = expandedIncomeSourceId === src.id}
 						{@const activeAmount = getAmountForIncomeSource(src, selectedYear, selectedMonth)}
+						{@const incomeDates = incomeDatesForMonth(src, selectedYear, selectedMonth)}
 						<div class="income-source-item" class:expanded={isIncomeExpanded}>
 							<div class="income-source-row">
 								<input
@@ -1176,6 +1227,18 @@
 								{#if incomeSources.length > 1}
 									<button class="btn-icon-tiny danger" title="Remove" on:click={() => removeIncomeSource(src.id, src.name)}>✕</button>
 								{/if}
+							</div>
+							<div class="income-dates-row">
+								<span class="income-dates-label">Income dates this month</span>
+								<span class="income-dates-value">
+									{#if incomeDates.length > 0}
+										{incomeDates.map((incomeDate) => formatIncomeDate(incomeDate)).join(', ')}
+									{:else if src.frequency === 'monthly'}
+										Monthly recurring income
+									{:else}
+										Add a payday date to see this month's income dates
+									{/if}
+								</span>
 							</div>
 
 							{#if isIncomeExpanded}
@@ -2187,6 +2250,11 @@
 		transition: background 0.2s, color 0.2s, border-color 0.2s;
 	}
 
+	:global(.dark-mode) .start-date-input::-webkit-calendar-picker-indicator {
+		filter: invert(1);
+		opacity: 0.85;
+	}
+
 	@media (max-width: 767px) {
 		.start-date-input {
 			width: 100%;
@@ -2194,6 +2262,34 @@
 			padding: 0.4rem;
 			font-size: 1rem;
 			min-height: 40px;
+		}
+	}
+
+	.income-dates-row {
+		display: flex;
+		gap: 0.5rem;
+		align-items: baseline;
+		padding-top: 0.45rem;
+		font-size: 0.8rem;
+		color: var(--color-text-secondary);
+	}
+
+	.income-dates-label {
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--color-text-tertiary);
+	}
+
+	.income-dates-value {
+		color: var(--color-text-primary);
+	}
+
+	@media (max-width: 767px) {
+		.income-dates-row {
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 0.2rem;
 		}
 	}
 

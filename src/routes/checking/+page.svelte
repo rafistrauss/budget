@@ -1166,6 +1166,11 @@
 		transition: background 0.2s, color 0.2s, border-color 0.2s;
 	}
 
+	:global(.dark-mode) label input[type='date']::-webkit-calendar-picker-indicator {
+		filter: invert(1);
+		opacity: 0.85;
+	}
+
 	label input:focus,
 	label select:focus {
 		outline: none;
