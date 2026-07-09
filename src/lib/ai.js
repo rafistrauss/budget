@@ -62,28 +62,46 @@ Budget context:
  * @param {number} ctx.totalMonthlyIncome
  * @param {number} ctx.totalMonthlyBudget
  * @param {number} ctx.monthlySavings
+ * @param {number} ctx.annualIncome
+ * @param {number} ctx.annualBudget
+ * @param {number} ctx.annualSavings
+ * @param {Array<{month: string; income: number; budget: number; savings: number}>} ctx.monthlyBreakdown
  */
 export function buildBudgetContext(ctx) {
 	return JSON.stringify(
 		{
-			period: `${ctx.monthName} ${ctx.year}`,
-			income: {
-				sources: ctx.incomeSources.map((s) => ({
-					name: s.name,
-					monthlyAmount: `$${s.effectiveAmount.toFixed(2)}`,
-					frequency: s.frequency
-				})),
-				bonuses: ctx.bonuses.map((b) => ({ name: b.name, amount: `$${b.amount.toFixed(2)}` })),
-				totalMonthlyIncome: `$${ctx.totalMonthlyIncome.toFixed(2)}`
+			selectedPeriod: `${ctx.monthName} ${ctx.year}`,
+			selectedMonth: {
+				income: {
+					sources: ctx.incomeSources.map((s) => ({
+						name: s.name,
+						monthlyAmount: `$${s.effectiveAmount.toFixed(2)}`,
+						frequency: s.frequency
+					})),
+					bonuses: ctx.bonuses.map((b) => ({ name: b.name, amount: `$${b.amount.toFixed(2)}` })),
+					totalIncome: `$${ctx.totalMonthlyIncome.toFixed(2)}`
+				},
+				expenses: {
+					categories: ctx.categories.map((c) => ({
+						name: c.name,
+						budgeted: `$${c.activeAmount.toFixed(2)}`
+					})),
+					totalBudgeted: `$${ctx.totalMonthlyBudget.toFixed(2)}`
+				},
+				projectedSavings: `$${ctx.monthlySavings.toFixed(2)}`
 			},
-			expenses: {
-				categories: ctx.categories.map((c) => ({
-					name: c.name,
-					budgeted: `$${c.activeAmount.toFixed(2)}`
-				})),
-				totalBudgeted: `$${ctx.totalMonthlyBudget.toFixed(2)}`
-			},
-			projectedMonthlySavings: `$${ctx.monthlySavings.toFixed(2)}`
+			fullYear: {
+				year: ctx.year,
+				totalIncome: `$${ctx.annualIncome.toFixed(2)}`,
+				totalBudgeted: `$${ctx.annualBudget.toFixed(2)}`,
+				projectedSavings: `$${ctx.annualSavings.toFixed(2)}`,
+				monthByMonth: ctx.monthlyBreakdown.map((m) => ({
+					month: m.month,
+					income: `$${m.income.toFixed(2)}`,
+					budgeted: `$${m.budget.toFixed(2)}`,
+					savings: `$${m.savings.toFixed(2)}`
+				}))
+			}
 		},
 		null,
 		2

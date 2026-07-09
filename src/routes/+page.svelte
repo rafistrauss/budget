@@ -499,7 +499,22 @@
 		bonuses: bonuses.filter((b) => b.month === selectedMonth),
 		totalMonthlyIncome,
 		totalMonthlyBudget,
-		monthlySavings
+		monthlySavings,
+		annualIncome,
+		annualBudget: Array.from({ length: 12 }, (_, m) =>
+			categories.reduce((acc, cat) => acc + getAmountForMonth(cat, selectedYear, m), 0)
+		).reduce((a, b) => a + b, 0),
+		annualSavings,
+		monthlyBreakdown: Array.from({ length: 12 }, (_, m) => {
+			const inc =
+				incomeSources.reduce((acc, src) => acc + incomeForMonth(src, selectedYear, m), 0) +
+				recurringBonusForMonth(m);
+			const budget = categories.reduce(
+				(acc, cat) => acc + getAmountForMonth(cat, selectedYear, m),
+				0
+			);
+			return { month: monthNames[m], income: inc, budget, savings: inc - budget };
+		})
 	});
 
 	/** @param {number} val */
