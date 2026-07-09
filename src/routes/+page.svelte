@@ -6,9 +6,11 @@
 	import { darkMode } from '$lib/darkModeStore.js';
 	import Nav from '$lib/Nav.svelte';
 	import AuthBar from '$lib/AuthBar.svelte';
+	import AISidebar from '$lib/AISidebar.svelte';
 	import { auth, db } from '$lib/firebase.js';
 	import { onAuthStateChanged } from 'firebase/auth';
 	import { doc, getDoc, setDoc } from 'firebase/firestore';
+	import { buildBudgetContext } from '$lib/ai.js';
 
 	const STORAGE_KEY = 'monthly-budget-v5';
 	const CATEGORY_COLORS = [
@@ -93,6 +95,10 @@
 	 * @type {import('firebase/auth').User | null}
 	 */
 	let currentUser = null;
+
+	// ── AI sidebar ──
+	let aiSidebarOpen = false;
+	let geminiApiKey = '';
 
 	let newCategoryName = '';
 	let newCategoryAmount = 0;
@@ -270,6 +276,15 @@
 					console.error('Could not apply Firestore budget', err);
 				}
 			}
+			// Load Gemini API key
+			try {
+				const settingsSnap = await getDoc(doc(db, 'users', user.uid));
+				geminiApiKey = settingsSnap.data()?.geminiApiKey ?? '';
+			} catch {
+				geminiApiKey = '';
+			}
+		} else {
+			geminiApiKey = '';
 		}
 	});
 
@@ -467,9 +482,65 @@
 		}).reduce((a, b) => a + b, 0);
 	}
 
+	// ── AI budget context (rebuilt whenever budget data or selected period changes) ──
+	$: aiBudgetContext = buildBudgetContext({
+		monthName: monthNames[selectedMonth],
+		year: selectedYear,
+		categories: monthlyRows.map((r) => ({
+			name: r.category.name,
+			baseAmount: r.category.baseAmount,
+			activeAmount: r.activeAmount
+		})),
+		incomeSources: incomeSources.map((src) => ({
+			name: src.name,
+			effectiveAmount: incomeForMonth(src, selectedYear, selectedMonth),
+			frequency: src.frequency
+		})),
+		bonuses: bonuses.filter((b) => b.month === selectedMonth),
+		totalMonthlyIncome,
+		totalMonthlyBudget,
+		monthlySavings
+	});
+
 	/** @param {number} val */
 	function savingsClass(val) {
 		return val >= 0 ? 'positive' : 'negative';
+	}
+
+	/**
+	 * Handle an AI-suggested budget action command.
+	 * @param {Record<string, unknown>} command
+	 */
+	function handleAIAction(command) {
+		const type = command.type;
+		if (type === 'addCategory') {
+			const name = String(command.name ?? 'New Category');
+			const baseAmount = Number(command.baseAmount) || 0;
+			categories = [
+				...categories,
+				{
+					id: `cat-${Date.now()}`,
+					name,
+					baseAmount,
+					changes: [],
+					events: []
+				}
+			];
+		} else if (type === 'updateCategoryAmount') {
+			const id = String(command.id ?? '');
+			const amount = Number(command.amount) || 0;
+			categories = categories.map((c) =>
+				c.id === id ? { ...c, baseAmount: amount } : c
+			);
+		} else if (type === 'addBonus') {
+			const name = String(command.name ?? 'Bonus');
+			const amount = Number(command.amount) || 0;
+			const month = Number(command.month ?? selectedMonth);
+			bonuses = [
+				...bonuses,
+				{ id: `bonus-${Date.now()}`, name, amount, month }
+			];
+		}
 	}
 
 	/**
@@ -1162,6 +1233,12 @@
 					⬆ Import
 					<input type="file" accept=".json,application/json" style="display:none" on:change={handleImport} />
 				</label>
+				<button
+					class="btn-secondary btn-ai"
+					class:btn-ai--active={aiSidebarOpen}
+					title="Open AI budget assistant"
+					on:click={() => (aiSidebarOpen = !aiSidebarOpen)}
+				>🤖 AI</button>
 			</div>
 		</header>
 
@@ -1766,6 +1843,15 @@
 		</section>
 
 	</main>
+
+	<AISidebar
+		bind:open={aiSidebarOpen}
+		apiKey={geminiApiKey}
+		{currentUser}
+		budgetContext={aiBudgetContext}
+		onAction={handleAIAction}
+		onKeySaved={(key) => (geminiApiKey = key)}
+	/>
 </div>
 
 <style>
@@ -1871,6 +1957,16 @@
 	.btn-save:not([disabled]):hover {
 		border-color: var(--color-accent-green);
 		color: var(--color-accent-green);
+	}
+
+	.btn-ai:hover {
+		border-color: var(--color-accent-purple);
+		color: var(--color-accent-purple);
+	}
+	.btn-ai--active {
+		background: var(--color-accent-blue-light);
+		border-color: var(--color-accent-blue-border);
+		color: var(--color-accent-blue);
 	}
 
 	@media (max-width: 767px) {
