@@ -128,6 +128,10 @@
 		font-size: 0.88rem;
 		line-height: 1.55;
 		color: var(--color-text-primary);
+		overflow-wrap: break-word;
+		word-break: break-word;
+		min-width: 0;
+	}
 	}
 
 	/* ── Callout ── */
@@ -141,7 +145,7 @@
 		line-height: 1.5;
 	}
 	.callout-icon { font-size: 1rem; flex-shrink: 0; margin-top: 0.05rem; }
-	.callout-body { flex: 1; }
+	.callout-body { flex: 1; overflow-wrap: break-word; word-break: break-word; min-width: 0; }
 
 	.callout-info    { background: #eef4ff; border-color: var(--color-accent-blue); color: #1a3a6b; }
 	.callout-warning { background: #fff8e1; border-color: #f59e0b; color: #7c4a0a; }
@@ -159,6 +163,7 @@
 		border-radius: 8px;
 		background: var(--color-surface);
 		overflow: hidden;
+		min-width: 0;
 	}
 	.card-header {
 		display: flex;
@@ -184,6 +189,10 @@
 		font-size: 0.85rem;
 		color: var(--color-text-primary);
 		line-height: 1.5;
+		overflow-wrap: break-word;
+		word-break: break-word;
+		min-width: 0;
+		overflow: hidden;
 	}
 
 	/* ── Table ── */

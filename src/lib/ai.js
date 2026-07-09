@@ -99,7 +99,7 @@ export function createBudgetChat(apiKey, budgetContext) {
 	const systemInstruction = SYSTEM_PROMPT.replace('{BUDGET_CONTEXT}', budgetContext);
 
 	const model = genAI.getGenerativeModel({
-		model: 'gemini-1.5-flash',
+		model: 'gemini-2.0-flash',
 		systemInstruction,
 		generationConfig: {
 			responseMimeType: 'application/json'
