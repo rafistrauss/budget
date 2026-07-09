@@ -10,7 +10,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
  * @typedef {{ blocks: AIBlock[] }} AIResponse
  */
 
-const GEMINI_MODEL = 'gemini-2.0-flash-lite';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 
 const SYSTEM_PROMPT = `You are a helpful personal budget assistant. You have access to the user's current budget data (provided as JSON below).
 
