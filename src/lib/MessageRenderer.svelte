@@ -132,7 +132,6 @@
 		word-break: break-word;
 		min-width: 0;
 	}
-	}
 
 	/* ── Callout ── */
 	.callout {

@@ -10,6 +10,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
  * @typedef {{ blocks: AIBlock[] }} AIResponse
  */
 
+const GEMINI_MODEL = 'gemini-2.0-flash';
+
 const SYSTEM_PROMPT = `You are a helpful personal budget assistant. You have access to the user's current budget data (provided as JSON below).
 
 You MUST always respond with a valid JSON object with this exact structure:
@@ -99,7 +101,7 @@ export function createBudgetChat(apiKey, budgetContext) {
 	const systemInstruction = SYSTEM_PROMPT.replace('{BUDGET_CONTEXT}', budgetContext);
 
 	const model = genAI.getGenerativeModel({
-		model: 'gemini-2.0-flash',
+		model: GEMINI_MODEL,
 		systemInstruction,
 		generationConfig: {
 			responseMimeType: 'application/json'
@@ -135,7 +137,7 @@ export function createBudgetChat(apiKey, budgetContext) {
  */
 export async function testApiKey(apiKey) {
 	const genAI = new GoogleGenerativeAI(apiKey);
-	const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+	const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 	await model.generateContent('Reply with the single word: ok');
 }
 
