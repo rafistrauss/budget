@@ -1,7 +1,8 @@
 <script>
+	import { marked } from 'marked';
 	import { doc, setDoc, getDoc } from 'firebase/firestore';
 	import { db } from '$lib/firebase.js';
-	import { testApiKey } from '$lib/ai.js';
+	import { testApiKey, friendlyApiError } from '$lib/ai.js';
 	import { darkMode } from '$lib/darkModeStore.js';
 
 	/** @type {import('firebase/auth').User | null} */
@@ -27,7 +28,7 @@
 			testStatus = 'ok';
 		} catch (err) {
 			testStatus = 'error';
-			testError = err instanceof Error ? err.message : String(err);
+			testError = friendlyApiError(err);
 		} finally {
 			testing = false;
 		}
@@ -106,7 +107,8 @@
 	{#if testStatus === 'ok'}
 		<p class="status-ok">✅ Key is valid!</p>
 	{:else if testStatus === 'error'}
-		<p class="status-error">❌ {testError || 'Invalid key. Check and try again.'}</p>
+		<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+		<div class="status-error">{@html marked.parse(testError || 'Invalid key. Check and try again.', { async: false })}</div>
 	{/if}
 
 	{#if !currentUser}
@@ -194,7 +196,16 @@
 	.btn-test:disabled { opacity: 0.6; cursor: default; }
 
 	.status-ok { font-size: 0.82rem; color: var(--color-accent-green); margin: 0; }
-	.status-error { font-size: 0.82rem; color: var(--color-accent-red); margin: 0; }
+	.status-error {
+		font-size: 0.82rem;
+		color: var(--color-accent-red);
+		margin: 0;
+		line-height: 1.5;
+	}
+	.status-error :global(p) { margin: 0 0 0.3em; }
+	.status-error :global(p:last-child) { margin-bottom: 0; }
+	.status-error :global(a) { color: var(--color-accent-red); }
+	.status-error :global(ol), .status-error :global(ul) { margin: 0.2em 0 0.2em 1.2em; padding: 0; }
 
 	.no-auth-note {
 		font-size: 0.8rem;

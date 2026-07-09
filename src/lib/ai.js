@@ -142,10 +142,39 @@ export async function testApiKey(apiKey) {
 }
 
 /**
- * Parses the raw AI text into an AIResponse, falling back gracefully.
- * @param {string} text
- * @returns {AIResponse}
+ * Converts a raw Gemini API error into a user-friendly message.
+ * Detects the common "billing enabled → free-tier quota = 0" pattern.
+ * @param {unknown} err
+ * @returns {string}
  */
+export function friendlyApiError(err) {
+	const msg = err instanceof Error ? err.message : String(err);
+
+	if (msg.includes('free_tier') && msg.includes('limit: 0')) {
+		return (
+			'Your API key belongs to a Google Cloud project with billing enabled, ' +
+			'which removes the free-tier quota. To fix this:\n\n' +
+			'1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey) and create a key ' +
+			'in a **new project** (no billing attached).\n' +
+			'2. Or, in [Google Cloud Console](https://console.cloud.google.com/apis/api/generativelanguage.googleapis.com/quotas), ' +
+			'increase the paid-tier quota for your model.'
+		);
+	}
+
+	if (msg.includes('429') || msg.toLowerCase().includes('quota')) {
+		return 'Rate limit hit. Please wait a moment and try again.';
+	}
+
+	if (msg.includes('403') || msg.toLowerCase().includes('permission')) {
+		return 'API key is valid but lacks permission to call this model. Check your Google AI Studio project settings.';
+	}
+
+	if (msg.includes('404')) {
+		return 'Model not found. Your API key may not have access to this model yet — try regenerating it in Google AI Studio.';
+	}
+
+	return msg;
+}
 function parseAIResponse(text) {
 	try {
 		const parsed = JSON.parse(text);

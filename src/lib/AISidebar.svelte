@@ -1,7 +1,7 @@
 <script>
 	import { onMount, tick } from 'svelte';
 	import { darkMode } from '$lib/darkModeStore.js';
-	import { createBudgetChat } from '$lib/ai.js';
+	import { createBudgetChat, friendlyApiError } from '$lib/ai.js';
 	import AISettings from '$lib/AISettings.svelte';
 	import MessageRenderer from '$lib/MessageRenderer.svelte';
 
@@ -69,7 +69,7 @@
 				i === loadingIdx ? { role: 'assistant', blocks: response.blocks } : m
 			);
 		} catch (err) {
-			const errMsg = err instanceof Error ? err.message : String(err);
+			const errMsg = friendlyApiError(err);
 			messages = messages.map((m, i) =>
 				i === loadingIdx
 					? {
