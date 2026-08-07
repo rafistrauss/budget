@@ -89,6 +89,12 @@
 	/** @type {'' | 'saving' | 'saved' | 'saved-locally' | 'error'} */
 	let saveStatus = '';
 
+	// ── Plan / What-if scenario ──
+	// Preview savings for different income/spending without overwriting the real budget.
+	let planMode = false;
+	let scenarioMonthlyIncome = 0;
+	let scenarioMonthlySpending = 0;
+
 	/**
 	 * @type {import('firebase/auth').User | null}
 	 */
@@ -210,6 +216,18 @@
 			}
 		}
 		migrateScheduledExpensesCategory();
+
+		const parsedScenarios = /** @type {{ scenarios?: unknown }} */ (parsed).scenarios;
+		if (Array.isArray(parsedScenarios)) {
+			savedScenarios = parsedScenarios
+				.filter((/** @type {unknown} */ s) => s && typeof s === 'object')
+				.map((/** @type {{ id?: unknown; name?: unknown; monthlyIncome?: unknown; monthlySpending?: unknown }} */ s, /** @type {number} */ i) => ({
+					id: typeof s.id === 'string' && s.id ? s.id : `scenario-${i}`,
+					name: typeof s.name === 'string' && s.name ? s.name : `Scenario ${i + 1}`,
+					monthlyIncome: Number(s.monthlyIncome) || 0,
+					monthlySpending: Number(s.monthlySpending) || 0
+				}));
+		}
 	}
 
 	/** @type {ReturnType<typeof setTimeout> | undefined} */
@@ -223,7 +241,7 @@
 			return;
 		}
 		try {
-			await setDoc(doc(db, 'budgets', currentUser.uid), { categories, incomeSources, bonuses });
+			await setDoc(doc(db, 'budgets', currentUser.uid), { categories, incomeSources, bonuses, scenarios: savedScenarios });
 		} catch (err) {
 			console.error('Failed to sync budget to Firebase:', err);
 			if (throwOnError) throw err;
@@ -240,7 +258,7 @@
 		clearTimeout(saveStatusTimer);
 		saveStatus = 'saving';
 		try {
-			safelySetLocalStorage(STORAGE_KEY, JSON.stringify({ categories, incomeSources, bonuses }));
+			safelySetLocalStorage(STORAGE_KEY, JSON.stringify({ categories, incomeSources, bonuses, scenarios: savedScenarios }));
 			clearTimeout(syncDebounceTimer);
 			if (currentUser) {
 				await syncBudgetToFirebase({ throwOnError: true });
@@ -297,7 +315,7 @@
 	});
 
 	$: if (hasLoadedFromStorage && !actualsEditMode) {
-		safelySetLocalStorage(STORAGE_KEY, JSON.stringify({ categories, incomeSources, bonuses }));
+		safelySetLocalStorage(STORAGE_KEY, JSON.stringify({ categories, incomeSources, bonuses, scenarios: savedScenarios }));
 		debouncedSyncBudgetToFirebase();
 	}
 
@@ -472,6 +490,72 @@
 		return val >= 0 ? 'positive' : 'negative';
 	}
 
+	// ── Scenario derived values ──
+	$: scenarioMonthlySavings = scenarioMonthlyIncome - scenarioMonthlySpending;
+	// Project the monthly overrides across the year as a delta from the current plan.
+	$: scenarioAnnualSavings =
+		annualSavings +
+		12 *
+			(scenarioMonthlyIncome -
+				totalMonthlyIncome -
+				(scenarioMonthlySpending - totalMonthlyBudget));
+
+	$: scenarioMonthlyDelta = scenarioMonthlySavings - monthlySavings;
+	$: scenarioAnnualDelta = scenarioAnnualSavings - annualSavings;
+
+	function initScenarioFromCurrent() {
+		scenarioMonthlyIncome = totalMonthlyIncome;
+		scenarioMonthlySpending = totalMonthlyBudget;
+	}
+
+	function togglePlanMode() {
+		if (!planMode) initScenarioFromCurrent();
+		planMode = !planMode;
+	}
+
+	// ── Saved comparisons ──
+	/**
+	 * @typedef {{ id: string; name: string; monthlyIncome: number; monthlySpending: number }} BudgetScenario
+	 */
+	/** @type {BudgetScenario[]} */
+	let savedScenarios = [];
+	let scenarioName = '';
+	/** @type {string} */
+	let loadedScenarioId = '';
+
+	function newScenarioId() {
+		return `scenario-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+	}
+
+	async function saveScenario() {
+		const name = scenarioName.trim() || `Scenario ${savedScenarios.length + 1}`;
+		const scenario = {
+			id: newScenarioId(),
+			name,
+			monthlyIncome: Number(scenarioMonthlyIncome) || 0,
+			monthlySpending: Number(scenarioMonthlySpending) || 0
+		};
+		savedScenarios = [...savedScenarios, scenario];
+		loadedScenarioId = scenario.id;
+		scenarioName = '';
+		await saveManually();
+	}
+
+	/** @param {BudgetScenario} scenario */
+	function loadScenario(scenario) {
+		scenarioMonthlyIncome = scenario.monthlyIncome;
+		scenarioMonthlySpending = scenario.monthlySpending;
+		loadedScenarioId = scenario.id;
+		if (!planMode) planMode = true;
+	}
+
+	/** @param {string} id */
+	async function deleteScenario(id) {
+		savedScenarios = savedScenarios.filter((s) => s.id !== id);
+		if (loadedScenarioId === id) loadedScenarioId = '';
+		await saveManually();
+	}
+
 	/**
 	 * @param {number} year
 	 * @param {number} month
@@ -599,7 +683,7 @@
 	}
 
 	function exportData() {
-		const data = JSON.stringify({ categories, incomeSources, bonuses }, null, 2);
+		const data = JSON.stringify({ categories, incomeSources, bonuses, scenarios: savedScenarios }, null, 2);
 		const blob = new Blob([data], { type: 'application/json' });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
@@ -1154,6 +1238,9 @@
 				}}>›</button>
 			</div>
 			<div class="period-actions">
+				<button class="btn-secondary" on:click={togglePlanMode} title="Preview savings for different income or spending">
+					{planMode ? '✕ Close Plan' : '🧮 Plan / Compare'}
+				</button>
 				<button class="btn-secondary btn-save" on:click={saveManually} disabled={!hasLoadedFromStorage || saveStatus === 'saving'} title={currentUser ? 'Save and sync to cloud' : 'Save locally (sign in to sync)'} aria-label={saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Synced' : saveStatus === 'saved-locally' ? 'Saved locally' : saveStatus === 'error' ? 'Save error' : 'Save budget'}>
 					{#if saveStatus === 'saving'}⏳ Saving…{:else if saveStatus === 'saved'}✓ Synced{:else if saveStatus === 'saved-locally'}✓ Saved locally{:else if saveStatus === 'error'}⚠ Error{:else}💾 Save{/if}
 				</button>
@@ -1399,6 +1486,88 @@
 				</div>
 			</div>
 		</section>
+
+		<!-- Plan / What-if scenario -->
+		{#if planMode}
+			<section class="scenario-section">
+				<div class="scenario-head">
+					<h2>Plan / Compare Scenario</h2>
+					<button class="btn-secondary btn-small" on:click={initScenarioFromCurrent}>Reset to current</button>
+				</div>
+				<p class="scenario-hint">
+					Try different monthly income or spending to see the effect on your savings. Your saved
+					budget for {monthNames[selectedMonth]} {selectedYear} is not changed.
+				</p>
+				<div class="scenario-grid">
+					<label class="scenario-field">
+						<span>Monthly Income</span>
+						<input type="number" min="0" step="50" bind:value={scenarioMonthlyIncome} />
+						<span class="scenario-current">Current: {formatAsCurrency(totalMonthlyIncome)}</span>
+					</label>
+					<label class="scenario-field">
+						<span>Monthly Spending</span>
+						<input type="number" min="0" step="50" bind:value={scenarioMonthlySpending} />
+						<span class="scenario-current">Current: {formatAsCurrency(totalMonthlyBudget)}</span>
+					</label>
+				</div>
+
+				<div class="scenario-results">
+					<div class="scenario-metric">
+						<span class="scenario-metric-label">Monthly Savings</span>
+						<span class="scenario-metric-value {savingsClass(scenarioMonthlySavings)}">{formatAsCurrency(scenarioMonthlySavings)}</span>
+						<span class="scenario-metric-delta {savingsClass(scenarioMonthlyDelta)}">
+							{scenarioMonthlyDelta >= 0 ? '+' : '−'}{formatAsCurrency(Math.abs(scenarioMonthlyDelta))} vs current
+						</span>
+					</div>
+					<div class="scenario-metric">
+						<span class="scenario-metric-label">Annual Savings ({selectedYear})</span>
+						<span class="scenario-metric-value {savingsClass(scenarioAnnualSavings)}">{formatAsCurrency(scenarioAnnualSavings)}</span>
+						<span class="scenario-metric-delta {savingsClass(scenarioAnnualDelta)}">
+							{scenarioAnnualDelta >= 0 ? '+' : '−'}{formatAsCurrency(Math.abs(scenarioAnnualDelta))} vs current
+						</span>
+					</div>
+					<div class="scenario-metric">
+						<span class="scenario-metric-label">Savings Rate</span>
+						<span class="scenario-metric-value">
+							{scenarioMonthlyIncome > 0 ? Math.round((scenarioMonthlySavings / scenarioMonthlyIncome) * 100) : 0}%
+						</span>
+						<span class="scenario-metric-delta">of scenario income</span>
+					</div>
+				</div>
+
+				<!-- Save / load comparisons -->
+				<div class="saved-scenarios">
+					<div class="save-scenario-row">
+						<input
+							type="text"
+							class="scenario-name-input"
+							placeholder="Name this comparison"
+							bind:value={scenarioName}
+							on:keydown={(e) => e.key === 'Enter' && saveScenario()}
+						/>
+						<button class="btn-secondary btn-small" on:click={saveScenario}>Save comparison</button>
+					</div>
+					{#if savedScenarios.length > 0}
+						<ul class="scenario-list">
+							{#each savedScenarios as scenario (scenario.id)}
+								<li class="scenario-list-item" class:active={loadedScenarioId === scenario.id}>
+									<div class="scenario-list-info">
+										<span class="scenario-list-name">{scenario.name}</span>
+										<span class="scenario-list-meta">
+											Income {formatAsCurrency(scenario.monthlyIncome)} · Spending {formatAsCurrency(scenario.monthlySpending)} · Savings {formatAsCurrency(scenario.monthlyIncome - scenario.monthlySpending)}/mo
+										</span>
+									</div>
+									<div class="scenario-list-actions">
+										<button class="btn-secondary btn-small" on:click={() => loadScenario(scenario)}>Load</button>
+										<button class="btn-icon-danger" title="Delete comparison" on:click={() => deleteScenario(scenario.id)}>✕</button>
+									</div>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</div>
+			</section>
+		{/if}
 
 		<!-- Spending bar -->
 		{#if totalMonthlyIncome > 0 && totalMonthlyBudget > 0}
@@ -2405,6 +2574,226 @@
 	.spending-card { border-top: 3px solid var(--color-accent-orange); }
 
 	/* ── Spending bar ── */
+	/* ── Plan / Scenario ── */
+	.scenario-section {
+		background: var(--color-surface);
+		border: 1px solid var(--color-accent-blue);
+		border-radius: 12px;
+		padding: 1.25rem 1.5rem;
+		margin-bottom: 1.25rem;
+		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+		transition: background 0.2s, box-shadow 0.2s;
+	}
+
+	.scenario-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		flex-wrap: wrap;
+	}
+
+	.scenario-head h2 {
+		margin: 0;
+		font-size: 1.05rem;
+	}
+
+	.btn-small {
+		font-size: 0.8rem;
+		padding: 0.3rem 0.6rem;
+	}
+
+	.scenario-hint {
+		margin: 0.4rem 0 1rem;
+		font-size: 0.85rem;
+		color: var(--color-text-secondary);
+	}
+
+	.scenario-grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 1rem;
+		margin-bottom: 1.25rem;
+	}
+
+	.scenario-field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+	}
+
+	.scenario-field > span:first-child {
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--color-text-secondary);
+	}
+
+	.scenario-field input {
+		padding: 0.5rem 0.65rem;
+		border: 1px solid var(--color-border);
+		border-radius: 8px;
+		background: var(--color-bg);
+		color: var(--color-text-primary);
+		font-size: 1rem;
+	}
+
+	.scenario-current {
+		font-size: 0.75rem;
+		color: var(--color-text-tertiary);
+	}
+
+	.scenario-results {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.75rem;
+	}
+
+	.scenario-metric {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+		padding: 0.85rem 1rem;
+		background: var(--color-bg);
+		border: 1px solid var(--color-border);
+		border-radius: 10px;
+	}
+
+	.scenario-metric-label {
+		font-size: 0.72rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--color-text-secondary);
+	}
+
+	.scenario-metric-value {
+		font-size: 1.35rem;
+		font-weight: 700;
+		color: var(--color-text-primary);
+	}
+
+	.scenario-metric-value.positive {
+		color: var(--color-accent-green);
+	}
+
+	.scenario-metric-value.negative {
+		color: var(--color-accent-red);
+	}
+
+	.scenario-metric-delta {
+		font-size: 0.78rem;
+		color: var(--color-text-tertiary);
+	}
+
+	.scenario-metric-delta.positive {
+		color: var(--color-accent-green);
+	}
+
+	.scenario-metric-delta.negative {
+		color: var(--color-accent-red);
+	}
+
+	.saved-scenarios {
+		margin-top: 1.25rem;
+		padding-top: 1rem;
+		border-top: 1px dashed var(--color-border);
+	}
+
+	.save-scenario-row {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.scenario-name-input {
+		flex: 1;
+		min-width: 180px;
+		padding: 0.5rem 0.65rem;
+		border: 1px solid var(--color-border);
+		border-radius: 8px;
+		background: var(--color-bg);
+		color: var(--color-text-primary);
+		font-size: 0.9rem;
+	}
+
+	.scenario-list {
+		list-style: none;
+		margin: 0.85rem 0 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.scenario-list-item {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		padding: 0.55rem 0.75rem;
+		background: var(--color-bg);
+		border: 1px solid var(--color-border);
+		border-radius: 8px;
+	}
+
+	.scenario-list-item.active {
+		border-color: var(--color-accent-blue);
+		box-shadow: inset 0 0 0 1px var(--color-accent-blue);
+	}
+
+	.scenario-list-info {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+		min-width: 0;
+	}
+
+	.scenario-list-name {
+		font-weight: 600;
+		font-size: 0.9rem;
+		color: var(--color-text-primary);
+	}
+
+	.scenario-list-meta {
+		font-size: 0.75rem;
+		color: var(--color-text-tertiary);
+	}
+
+	.scenario-list-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		flex-shrink: 0;
+	}
+
+	.btn-icon-danger {
+		border: 1px solid var(--color-border);
+		background: transparent;
+		color: var(--color-accent-red);
+		border-radius: 6px;
+		width: 1.9rem;
+		height: 1.9rem;
+		cursor: pointer;
+		font-size: 0.85rem;
+		line-height: 1;
+	}
+
+	.btn-icon-danger:hover {
+		background: rgba(209, 73, 91, 0.1);
+	}
+
+	@media (max-width: 767px) {
+		.scenario-grid,
+		.scenario-results {
+			grid-template-columns: 1fr;
+		}
+		.scenario-section {
+			padding: 1rem;
+		}
+	}
+
 	.spend-bar-section {
 		background: var(--color-surface);
 		border-radius: 12px;

@@ -32,6 +32,11 @@
 		/** @type {"single"|"joint"} */
 		filingStatus = 'joint';
 
+	// Bindable computed outputs so parents can read the results (e.g. for comparison views)
+	export let totalAnnualTakeHome = 0;
+	export let totalMonthlyTakeHome = 0;
+	export let totalBiweeklyTakeHome = 0;
+
 	let yearlyBonuses = [];
 	/** @type {number[]} */
 	let yearly401kContributions = [];
@@ -150,6 +155,10 @@
 
 		monthlyTakeHomes = annualTakeHomes.map((takeHome) => takeHome / 12);
 		biweeklyTakeHomes = annualTakeHomes.map((takeHome) => takeHome / 26);
+
+		totalAnnualTakeHome = (annualTakeHomes[0] || 0) + (annualTakeHomes[1] || 0);
+		totalMonthlyTakeHome = (monthlyTakeHomes[0] || 0) + (monthlyTakeHomes[1] || 0);
+		totalBiweeklyTakeHome = (biweeklyTakeHomes[0] || 0) + (biweeklyTakeHomes[1] || 0);
 	}
 </script>
 

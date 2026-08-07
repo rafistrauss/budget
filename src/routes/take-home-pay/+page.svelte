@@ -49,6 +49,88 @@
 	let saveStatus = '';
 	let inputsExpanded = true;
 
+	// ── Compare / What-if scenario ──
+	// Lets the user preview take-home for different inputs without overwriting current values.
+	let compareMode = false;
+	let scenarioSalary1 = 0;
+	let scenario401kContributionPercentage1 = 0;
+	let scenarioSalary2 = 0;
+	let scenario401kContributionPercentage2 = 0;
+
+	// Outputs read back from the tax breakdown components for comparison.
+	let currentAnnualTakeHome = 0;
+	let currentMonthlyTakeHome = 0;
+	let currentBiweeklyTakeHome = 0;
+	let scenarioAnnualTakeHome = 0;
+	let scenarioMonthlyTakeHome = 0;
+	let scenarioBiweeklyTakeHome = 0;
+
+	$: scenarioMonthlyDelta = scenarioMonthlyTakeHome - currentMonthlyTakeHome;
+	$: scenarioBiweeklyDelta = scenarioBiweeklyTakeHome - currentBiweeklyTakeHome;
+	$: scenarioAnnualDelta = scenarioAnnualTakeHome - currentAnnualTakeHome;
+
+	$: typedCurrentYear =
+		/** @type {'2023'|'2024'|'2025'|'2026'} */ (/** @type {any} */ (currentYear));
+
+	function initScenarioFromCurrent() {
+		scenarioSalary1 = yearlySalary1;
+		scenario401kContributionPercentage1 = _401kContributionPercentage1;
+		scenarioSalary2 = yearlySalary2;
+		scenario401kContributionPercentage2 = _401kContributionPercentage2;
+	}
+
+	function toggleCompareMode() {
+		if (!compareMode) initScenarioFromCurrent();
+		compareMode = !compareMode;
+	}
+
+	// ── Saved comparisons ──
+	/**
+	 * @typedef {{ id: string; name: string; salary1: number; k401_1: number; salary2: number; k401_2: number }} TakeHomeScenario
+	 */
+	/** @type {TakeHomeScenario[]} */
+	let savedScenarios = [];
+	let scenarioName = '';
+	/** @type {string} */
+	let loadedScenarioId = '';
+
+	function newScenarioId() {
+		return `scenario-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+	}
+
+	async function saveScenario() {
+		const name = scenarioName.trim() || `Scenario ${savedScenarios.length + 1}`;
+		const scenario = {
+			id: newScenarioId(),
+			name,
+			salary1: Number(scenarioSalary1) || 0,
+			k401_1: Number(scenario401kContributionPercentage1) || 0,
+			salary2: Number(scenarioSalary2) || 0,
+			k401_2: Number(scenario401kContributionPercentage2) || 0
+		};
+		savedScenarios = [...savedScenarios, scenario];
+		loadedScenarioId = scenario.id;
+		scenarioName = '';
+		await saveData();
+	}
+
+	/** @param {TakeHomeScenario} scenario */
+	function loadScenario(scenario) {
+		scenarioSalary1 = scenario.salary1;
+		scenario401kContributionPercentage1 = scenario.k401_1;
+		scenarioSalary2 = scenario.salary2;
+		scenario401kContributionPercentage2 = scenario.k401_2;
+		loadedScenarioId = scenario.id;
+		if (!compareMode) compareMode = true;
+	}
+
+	/** @param {string} id */
+	async function deleteScenario(id) {
+		savedScenarios = savedScenarios.filter((s) => s.id !== id);
+		if (loadedScenarioId === id) loadedScenarioId = '';
+		await saveData();
+	}
+
 	let /** @type {number} */
 		yearlyBonus1,
 		/** @type {number} */
@@ -192,6 +274,19 @@
 		currentState = data['current_state'] ?? currentState;
 		workState = data['work_state'] ?? workState;
 		currentYear = data['current_year'] ?? currentYear;
+
+		if (Array.isArray(data['take_home_scenarios'])) {
+			savedScenarios = data['take_home_scenarios']
+				.filter((/** @type {any} */ s) => s && typeof s === 'object')
+				.map((/** @type {any} */ s, /** @type {number} */ i) => ({
+					id: typeof s.id === 'string' && s.id ? s.id : newScenarioId(),
+					name: typeof s.name === 'string' && s.name ? s.name : `Scenario ${i + 1}`,
+					salary1: Number(s.salary1) || 0,
+					k401_1: Number(s.k401_1) || 0,
+					salary2: Number(s.salary2) || 0,
+					k401_2: Number(s.k401_2) || 0
+				}));
+		}
 	}
 
 	$: if (hasLoaded) {
@@ -254,7 +349,8 @@
 						annual_vision_deduction_2: annual_vision_deduction_2,
 						current_state: currentState,
 						work_state: workState,
-						current_year: currentYear
+						current_year: currentYear,
+						take_home_scenarios: savedScenarios
 					},
 					{ merge: true }
 				);
@@ -282,7 +378,8 @@
 					annual_vision_deduction_2: annual_vision_deduction_2,
 					current_state: currentState,
 					work_state: workState,
-					current_year: currentYear
+					current_year: currentYear,
+					take_home_scenarios: savedScenarios
 				};
 				safelySetLocalStorage('calculatorData', JSON.stringify(userData));
 				saveStatus = 'Data saved locally!';
@@ -330,6 +427,9 @@
 		<header class="page-header">
 			<h1>Take-Home Pay Calculator</h1>
 			<div class="header-actions">
+				<button class="btn-secondary" on:click={toggleCompareMode}>
+					{compareMode ? 'Hide Compare' : 'Compare / Plan'}
+				</button>
 				<button class="btn-secondary" on:click={saveData}>Save</button>
 				{#if saveStatus}<span class="save-toast">{saveStatus}</span>{/if}
 			</div>
@@ -688,7 +788,10 @@
 			<TaxesByState
 				{currentState}
 				{workState}
-				{currentYear}
+				currentYear={typedCurrentYear}
+				bind:totalAnnualTakeHome={currentAnnualTakeHome}
+				bind:totalMonthlyTakeHome={currentMonthlyTakeHome}
+				bind:totalBiweeklyTakeHome={currentBiweeklyTakeHome}
 				health_care_fsa_contributions={[
 					health_care_fsa_contribution_1,
 					health_care_fsa_contribution_2
@@ -714,6 +817,184 @@
 				]}
 			/>
 		</section>
+
+		<!-- Compare / What-if scenario card -->
+		{#if compareMode}
+			<section class="card scenario-card">
+				<div class="section-header">
+					<h2>Compare Scenario</h2>
+					<button class="btn-secondary btn-sm" on:click={initScenarioFromCurrent}>
+						Reset to current
+					</button>
+				</div>
+				<p class="scenario-hint">
+					Adjust the values below to preview take-home pay for a different scenario. Your saved
+					values above are not changed.
+				</p>
+
+				<div class="persons-grid">
+					<!-- Person 1 scenario -->
+					<div class="person-col">
+						<h3>Person 1</h3>
+						<div class="field-group">
+							<div class="field">
+								<span class="field-label">Yearly Salary</span>
+								<input type="number" bind:value={scenarioSalary1} />
+							</div>
+							<div class="field">
+								<span class="field-label">401k Contribution (%)</span>
+								<input type="number" bind:value={scenario401kContributionPercentage1} />
+							</div>
+						</div>
+					</div>
+
+					<!-- Person 2 scenario -->
+					<div class="person-col">
+						<h3>Person 2</h3>
+						<div class="field-group">
+							<div class="field">
+								<span class="field-label">Yearly Salary</span>
+								<input type="number" bind:value={scenarioSalary2} />
+							</div>
+							<div class="field">
+								<span class="field-label">401k Contribution (%)</span>
+								<input type="number" bind:value={scenario401kContributionPercentage2} />
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<span class="field-hint">
+					Deductions, FSA, state, and tax year are taken from your current inputs above.
+				</span>
+
+				<!-- Save / load comparisons -->
+				<div class="saved-scenarios">
+					<div class="save-scenario-row">
+						<input
+							type="text"
+							class="scenario-name-input"
+							placeholder="Name this comparison"
+							bind:value={scenarioName}
+							on:keydown={(e) => e.key === 'Enter' && saveScenario()}
+						/>
+						<button class="btn-secondary btn-sm" on:click={saveScenario}>Save comparison</button>
+					</div>
+					{#if savedScenarios.length > 0}
+						<ul class="scenario-list">
+							{#each savedScenarios as scenario (scenario.id)}
+								<li class="scenario-list-item" class:active={loadedScenarioId === scenario.id}>
+									<div class="scenario-list-info">
+										<span class="scenario-list-name">{scenario.name}</span>
+										<span class="scenario-list-meta">
+											P1 {formatAsCurrency(scenario.salary1)} · {scenario.k401_1}% 401k
+											{#if scenario.salary2}· P2 {formatAsCurrency(scenario.salary2)} · {scenario.k401_2}% 401k{/if}
+										</span>
+									</div>
+									<div class="scenario-list-actions">
+										<button class="btn-secondary btn-sm" on:click={() => loadScenario(scenario)}>Load</button>
+										<button class="btn-icon-danger" title="Delete comparison" on:click={() => deleteScenario(scenario.id)}>✕</button>
+									</div>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</div>
+
+				<!-- Comparison summary -->
+				<div class="compare-summary">
+					<div class="compare-col">
+						<span class="compare-heading">Current</span>
+						<div class="compare-metric">
+							<span class="compare-metric-label">Monthly</span>
+							<span class="compare-metric-value">{formatAsCurrency(currentMonthlyTakeHome)}</span>
+						</div>
+						<div class="compare-metric">
+							<span class="compare-metric-label">Biweekly</span>
+							<span class="compare-metric-value">{formatAsCurrency(currentBiweeklyTakeHome)}</span>
+						</div>
+						<div class="compare-metric">
+							<span class="compare-metric-label">Annual</span>
+							<span class="compare-metric-value">{formatAsCurrency(currentAnnualTakeHome)}</span>
+						</div>
+					</div>
+					<div class="compare-col scenario">
+						<span class="compare-heading">Scenario</span>
+						<div class="compare-metric">
+							<span class="compare-metric-label">Monthly</span>
+							<span class="compare-metric-value">{formatAsCurrency(scenarioMonthlyTakeHome)}</span>
+						</div>
+						<div class="compare-metric">
+							<span class="compare-metric-label">Biweekly</span>
+							<span class="compare-metric-value">{formatAsCurrency(scenarioBiweeklyTakeHome)}</span>
+						</div>
+						<div class="compare-metric">
+							<span class="compare-metric-label">Annual</span>
+							<span class="compare-metric-value">{formatAsCurrency(scenarioAnnualTakeHome)}</span>
+						</div>
+					</div>
+					<div class="compare-col delta">
+						<span class="compare-heading">Difference</span>
+						<div class="compare-metric">
+							<span class="compare-metric-label">Monthly</span>
+							<span class="compare-metric-value" class:positive={scenarioMonthlyDelta >= 0} class:negative={scenarioMonthlyDelta < 0}>
+								{scenarioMonthlyDelta >= 0 ? '+' : '−'}{formatAsCurrency(Math.abs(scenarioMonthlyDelta))}
+							</span>
+						</div>
+						<div class="compare-metric">
+							<span class="compare-metric-label">Biweekly</span>
+							<span class="compare-metric-value" class:positive={scenarioBiweeklyDelta >= 0} class:negative={scenarioBiweeklyDelta < 0}>
+								{scenarioBiweeklyDelta >= 0 ? '+' : '−'}{formatAsCurrency(Math.abs(scenarioBiweeklyDelta))}
+							</span>
+						</div>
+						<div class="compare-metric">
+							<span class="compare-metric-label">Annual</span>
+							<span class="compare-metric-value" class:positive={scenarioAnnualDelta >= 0} class:negative={scenarioAnnualDelta < 0}>
+								{scenarioAnnualDelta >= 0 ? '+' : '−'}{formatAsCurrency(Math.abs(scenarioAnnualDelta))}
+							</span>
+						</div>
+					</div>
+				</div>
+
+				<!-- Scenario tax breakdown -->
+				<div class="scenario-breakdown">
+					<TaxesByState
+						{currentState}
+						{workState}
+						currentYear={typedCurrentYear}
+						bind:totalAnnualTakeHome={scenarioAnnualTakeHome}
+						bind:totalMonthlyTakeHome={scenarioMonthlyTakeHome}
+						bind:totalBiweeklyTakeHome={scenarioBiweeklyTakeHome}
+						health_care_fsa_contributions={[
+							health_care_fsa_contribution_1,
+							health_care_fsa_contribution_2
+						]}
+						dependent_care_fsa_contributions={[
+							dependent_care_fsa_contribution_1,
+							dependent_care_fsa_contribution_2
+						]}
+						yearlySalaries={[scenarioSalary1, scenarioSalary2]}
+						contributionPercentages={[
+							scenario401kContributionPercentage1,
+							scenario401kContributionPercentage2
+						]}
+						{interval}
+						monthlyDentalContributions={[
+							annual_dental_deduction_1 / 12,
+							annual_dental_deduction_2 / 12
+						]}
+						monthlyMedicalContributions={[
+							annual_medical_deduction_1 / 12,
+							annual_medical_deduction_2 / 12
+						]}
+						monthlyVisionContributions={[
+							annual_vision_deduction_1 / 12,
+							annual_vision_deduction_2 / 12
+						]}
+					/>
+				</div>
+			</section>
+		{/if}
 	</main>
 </div>
 
@@ -1042,6 +1323,179 @@
 	@media (max-width: 1024px) {
 		.main {
 			max-width: 100%;
+		}
+	}
+
+	/* ── Compare / Scenario ── */
+	.scenario-card {
+		border: 1px solid var(--color-accent, #4f86c6);
+	}
+
+	.scenario-hint {
+		margin: 0 0 1rem;
+		font-size: 0.85rem;
+		color: var(--color-text-secondary);
+	}
+
+	.saved-scenarios {
+		margin-top: 1rem;
+		padding-top: 1rem;
+		border-top: 1px dashed var(--color-border);
+	}
+
+	.save-scenario-row {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.scenario-name-input {
+		flex: 1;
+		min-width: 180px;
+		padding: 0.45rem 0.6rem;
+		border: 1px solid var(--color-border);
+		border-radius: 8px;
+		background: var(--color-bg);
+		color: var(--color-text-primary);
+		font-size: 0.9rem;
+	}
+
+	.scenario-list {
+		list-style: none;
+		margin: 0.85rem 0 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.scenario-list-item {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		padding: 0.55rem 0.75rem;
+		background: var(--color-bg);
+		border: 1px solid var(--color-border);
+		border-radius: 8px;
+	}
+
+	.scenario-list-item.active {
+		border-color: #4f86c6;
+		box-shadow: inset 0 0 0 1px #4f86c6;
+	}
+
+	.scenario-list-info {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+		min-width: 0;
+	}
+
+	.scenario-list-name {
+		font-weight: 600;
+		font-size: 0.9rem;
+		color: var(--color-text-primary);
+	}
+
+	.scenario-list-meta {
+		font-size: 0.75rem;
+		color: var(--color-text-tertiary);
+	}
+
+	.scenario-list-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		flex-shrink: 0;
+	}
+
+	.btn-icon-danger {
+		border: 1px solid var(--color-border);
+		background: transparent;
+		color: #d1495b;
+		border-radius: 6px;
+		width: 1.9rem;
+		height: 1.9rem;
+		cursor: pointer;
+		font-size: 0.85rem;
+		line-height: 1;
+	}
+
+	.btn-icon-danger:hover {
+		background: rgba(209, 73, 91, 0.1);
+	}
+
+	.compare-summary {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.75rem;
+		margin: 1.25rem 0;
+	}
+
+	.compare-col {
+		background: var(--color-bg);
+		border: 1px solid var(--color-border);
+		border-radius: 10px;
+		padding: 0.85rem 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.compare-col.scenario {
+		background: #eef4ff;
+		border-color: #c3d8f7;
+	}
+
+	:global(.dark-mode) .compare-col.scenario {
+		background: #1f3a5f;
+		border-color: #2d5fa8;
+	}
+
+	.compare-heading {
+		font-size: 0.72rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--color-text-secondary);
+	}
+
+	.compare-metric {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.5rem;
+	}
+
+	.compare-metric-label {
+		font-size: 0.78rem;
+		color: var(--color-text-tertiary);
+	}
+
+	.compare-metric-value {
+		font-size: 1rem;
+		font-weight: 700;
+		color: var(--color-text-primary);
+	}
+
+	.compare-metric-value.positive {
+		color: #2e9e5b;
+	}
+
+	.compare-metric-value.negative {
+		color: #d1495b;
+	}
+
+	.scenario-breakdown {
+		margin-top: 1.25rem;
+		padding-top: 1.25rem;
+		border-top: 1px solid var(--color-border);
+	}
+
+	@media (max-width: 600px) {
+		.compare-summary {
+			grid-template-columns: 1fr;
 		}
 	}
 </style>
