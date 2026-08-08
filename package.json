@@ -31,7 +31,9 @@
 	"type": "module",
 	"packageManager": "pnpm@8.15.1",
 	"dependencies": {
+		"@google/generative-ai": "^0.24.1",
 		"dayjs": "^1.11.13",
-		"firebase": "^10.7.2"
+		"firebase": "^10.7.2",
+		"marked": "^18.0.5"
 	}
 }
