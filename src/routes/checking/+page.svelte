@@ -629,8 +629,8 @@
 	$: hasChaseCreditCard = checkingTransactions.some((t) => t.title === 'Chase Credit Card');
 	$: hasTargetCreditCard = checkingTransactions.some((t) => t.title === 'Target Credit Card');
 	$: hasAmazonStoreCard = checkingTransactions.some((t) => t.title === 'Amazon Store Card');
-	$: hasAnsheiTuition = checkingTransactions.some((t) => t.title === 'Anshei Tuition');
-	$: hasAnsheiRegistration = checkingTransactions.some((t) => t.title === 'Anshei Registration');
+	$: hasRYNJTuition = checkingTransactions.some((t) => t.title === 'RYNJ Tuition');
+	// $: hasRYNJRegistration = checkingTransactions.some((t) => t.title === 'RYNJ Registration');
 	$: hasPSEG = checkingTransactions.some((t) => t.title === 'PSEG');
 	$: hasVerizon = checkingTransactions.some((t) => t.title === 'Verizon');
 
@@ -911,21 +911,21 @@
 			}}><VerizonLogo /> Verizon</button
 		>
 		<button
-			class:addressed={hasAnsheiTuition}
+			class:addressed={hasRYNJTuition}
 			on:click={() => {
-				setShortcut('1352', getUpcomingDate(5));
+				setShortcut('355', getUpcomingDate(15));
 				type = 'debit';
-				title = 'Anshei Tuition';
-			}}>🎓 Anshei Tuition</button
+				title = 'RYNJ Tuition';
+			}}>🎓 RYNJ Tuition</button
 		>
-		<button
-			class:addressed={hasAnsheiRegistration}
+		<!-- <button
+			class:addressed={hasRYNJRegistration}
 			on:click={() => {
 				setShortcut('50', getUpcomingDate(1));
 				type = 'debit';
-				title = 'Anshei Registration';
-			}}>Anshei Registration</button
-		>
+				title = 'RYNJ Registration';
+			}}>RYNJ Registration</button
+		> -->
 	</div>
 
 	<div class="accounts-tables-container">
@@ -959,7 +959,7 @@
 										<AmazonLogo />
 									{:else if title === 'Auto Loan'}
 										🚗
-									{:else if title === 'Anshei Tuition'}
+									{:else if title === 'RYNJ Tuition'}
 										🎓
 									{:else if title === 'PSEG'}
 										<PSEGLogo />
