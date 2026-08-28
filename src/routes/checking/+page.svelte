@@ -11,6 +11,7 @@
 	import PSEGLogo from '$lib/PSEGLogo.svelte';
 	import VerizonLogo from '$lib/VerizonFiosLogo.svelte';
 	import Nav from '$lib/Nav.svelte';
+	import { calculateRequiredTransfer, groupTransactionsByDate } from '$lib/checking.js';
 
 	const easternTimezone = 'America/New_York'; // Set timezone to Eastern
 
@@ -97,6 +98,7 @@
 	let runningTotal = 0;
 	let belowZeroFlag = false;
 	let belowZeroTransactions = [];
+	let minimumCheckingBalance = 200;
 
 	onAuthStateChanged(auth, async (user) => {
 		if (user) {
@@ -622,6 +624,11 @@
 
 	$: currentCheckingBalance = getCurrentBalance(checkingTransactions);
 	$: currentSavingsBalance = getCurrentBalance(savingsTransactions);
+	$: checkingTransactionGroups = groupTransactionsByDate(checkingTransactions);
+	$: savingsTransactionGroups = groupTransactionsByDate(savingsTransactions);
+	$: minimumBalanceIsValid =
+		Number.isFinite(minimumCheckingBalance) && minimumCheckingBalance >= 0;
+	$: requiredTransfer = calculateRequiredTransfer(checkingTransactions, minimumCheckingBalance);
 
 	// Reactive declarations for each button state - force dependency on checkingTransactions
 	$: hasRent = checkingTransactions.some((t) => t.title === 'Rent');
@@ -644,30 +651,37 @@
 		}).format(amount);
 	}
 
-	function suggestCredit() {
-		const minimumBalance = 200;
-		const belowZeroTransaction = checkingTransactions.find(
-			(transaction) => transaction.runningTotal < 0
-		);
-		if (belowZeroTransaction) {
-			const suggestedAmount = (minimumBalance - belowZeroTransaction.runningTotal).toFixed(2);
-			const suggestedDate = new Date(
-				belowZeroTransaction.date.getTime() + belowZeroTransaction.date.getTimezoneOffset() * 60000
-			)
-				.toISOString()
-				.split('T')[0];
-			return {
-				amount: suggestedAmount,
-				date: suggestedDate,
-				fromSavings: savingsBalance >= parseFloat(suggestedAmount)
-			};
+	function prefillRequiredTransfer() {
+		if (!requiredTransfer) return;
+
+		amountCents = Math.round(requiredTransfer.amount * 100);
+		date = requiredTransfer.transferDate;
+		account = 'savings';
+		type = 'transfer';
+		transferTo = 'checking';
+		title = 'Transfer from Savings';
+		editingIndex = null;
+	}
+
+	function saveMinimumCheckingBalance() {
+		if (minimumBalanceIsValid) {
+			localStorage.setItem('minimumCheckingBalance', minimumCheckingBalance.toString());
 		}
-		return null;
 	}
 
 	import { onMount } from 'svelte';
 
 	onMount(() => {
+		const storedMinimumBalance = localStorage.getItem('minimumCheckingBalance');
+		const parsedMinimumBalance = Number(storedMinimumBalance);
+		if (
+			storedMinimumBalance !== null &&
+			Number.isFinite(parsedMinimumBalance) &&
+			parsedMinimumBalance >= 0
+		) {
+			minimumCheckingBalance = parsedMinimumBalance;
+		}
+
 		// Backwards compatibility: check for old 'transactions' format in localStorage
 		const oldTransactions = localStorage.getItem('transactions');
 		const storedCheckingTransactions = localStorage.getItem('checkingTransactions');
@@ -752,20 +766,39 @@
 		</div>
 	</div>
 
-	{#if suggestCredit()}
-		<div class="suggestion">
+	<div class="transfer-calculator">
+		<label>
+			Minimum checking balance:
+			<input
+				type="number"
+				min="0"
+				step="0.01"
+				required
+				bind:value={minimumCheckingBalance}
+				on:change={saveMinimumCheckingBalance}
+			/>
+		</label>
+		{#if !minimumBalanceIsValid}
+			<p class="negative">Enter a minimum checking balance of zero or more.</p>
+		{:else if requiredTransfer}
 			<p>
-				To maintain a minimum balance of $200, consider crediting {formatCurrency(
-					suggestCredit().amount
-				)} on {formatDate(suggestCredit().date)}.
-				{#if suggestCredit().fromSavings}
-					You have sufficient funds in savings to cover this transfer.
+				Transfer <strong>{formatCurrency(requiredTransfer.amount)}</strong> by
+				<strong>{formatDate(requiredTransfer.transferDate)}</strong> to cover the
+				{formatCurrency(requiredTransfer.projectedBalance)} ending balance on
+				{formatDate(requiredTransfer.shortfallDate)}.
+				{#if currentSavingsBalance < requiredTransfer.amount}
+					<span class="negative">Savings currently has insufficient funds.</span>
 				{:else}
-					⚠️ Warning: Savings balance is insufficient for this transfer.
+					Savings currently has enough to cover it.
 				{/if}
 			</p>
-		</div>
-	{/if}
+			<button type="button" class="credit-button" on:click={prefillRequiredTransfer}
+				>Autocalc transfer</button
+			>
+		{:else}
+			<p>Checking stays at or above {formatCurrency(minimumCheckingBalance)}.</p>
+		{/if}
+	</div>
 
 	<form on:submit|preventDefault={editingIndex !== null ? saveTransaction : addTransaction}>
 		<label>
@@ -944,9 +977,20 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each checkingTransactions as { amount, date, type, title, runningTotal }, index}
+					{#each checkingTransactionGroups as group}
+						<tr class="date-group">
+							<th colspan="4" scope="rowgroup">{formatDate(group.date)}</th>
+							<td>
+								<span>Day: {formatCurrency(group.dailyTotal)}</span>
+								<span class={group.endingBalance < 0 ? 'negative' : ''}
+									>End: {formatCurrency(group.endingBalance)}</span
+								>
+							</td>
+							<td></td>
+						</tr>
+						{#each group.transactions as { amount, type, title, runningTotal, index }}
 						<tr>
-							<td>{formatDate(date)}</td>
+							<td class="grouped-date"></td>
 							<td>{type}</td>
 							<td>{formatCurrency(amount)}</td>
 							<td>
@@ -982,6 +1026,7 @@
 								<button on:click={() => removeTransaction(index, 'checking')}>Remove</button>
 							</td>
 						</tr>
+						{/each}
 					{/each}
 				</tbody>
 			</table>
@@ -1002,9 +1047,20 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each savingsTransactions as { amount, date, type, title, runningTotal }, index}
+					{#each savingsTransactionGroups as group}
+						<tr class="date-group">
+							<th colspan="4" scope="rowgroup">{formatDate(group.date)}</th>
+							<td>
+								<span>Day: {formatCurrency(group.dailyTotal)}</span>
+								<span class={group.endingBalance < 0 ? 'negative' : ''}
+									>End: {formatCurrency(group.endingBalance)}</span
+								>
+							</td>
+							<td></td>
+						</tr>
+						{#each group.transactions as { amount, type, title, runningTotal, index }}
 						<tr>
-							<td>{formatDate(date)}</td>
+							<td class="grouped-date"></td>
 							<td>{type}</td>
 							<td>{formatCurrency(amount)}</td>
 							<td>{title}</td>
@@ -1021,6 +1077,7 @@
 								<button on:click={() => removeTransaction(index, 'savings')}>Remove</button>
 							</td>
 						</tr>
+						{/each}
 					{/each}
 				</tbody>
 			</table>
@@ -1112,8 +1169,11 @@
 		color: var(--color-text-primary);
 	}
 
-	/* ── Suggestion ── */
-	.suggestion {
+	/* ── Transfer calculator ── */
+	.transfer-calculator {
+		display: flex;
+		align-items: end;
+		gap: 1rem;
 		padding: 0.75rem 1rem;
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
@@ -1123,7 +1183,14 @@
 		transition: background 0.2s, border-color 0.2s;
 	}
 
-	.suggestion p { margin: 0; }
+	.transfer-calculator label {
+		flex: 0 0 190px;
+	}
+
+	.transfer-calculator p {
+		flex: 1;
+		margin: 0 0 0.4rem;
+	}
 
 	/* ── Form ── */
 	form {
@@ -1350,6 +1417,20 @@
 		background: color-mix(in srgb, var(--color-surface) 90%, var(--color-accent-blue));
 	}
 
+	.transactions-table .date-group th,
+	.transactions-table .date-group td {
+		background: color-mix(in srgb, var(--color-bg) 75%, var(--color-accent-blue));
+		border-top: 2px solid var(--color-border);
+		font-size: 0.78rem;
+		font-weight: 600;
+	}
+
+	.transactions-table .date-group td:nth-last-child(2) {
+		display: flex;
+		justify-content: space-between;
+		gap: 0.75rem;
+	}
+
 	.transactions-table .flag { margin-left: 0.3rem; }
 
 	.transaction-title {
@@ -1396,6 +1477,16 @@
 			gap: 0.6rem;
 		}
 
+		.transfer-calculator {
+			align-items: stretch;
+			flex-direction: column;
+			gap: 0.5rem;
+		}
+
+		.transfer-calculator label {
+			flex-basis: auto;
+		}
+
 		.shortcut-buttons button,
 		.button-group button {
 			font-size: 0.8rem;
@@ -1430,6 +1521,30 @@
 			grid-template-columns: 1fr auto;
 			gap: 0.15rem 0.5rem;
 			align-items: start;
+		}
+
+		.transactions-table .date-group {
+			display: grid;
+			grid-template-columns: 1fr;
+			margin-top: 0.9rem;
+			margin-bottom: 0.35rem;
+			padding: 0.55rem 0.75rem;
+		}
+
+		.transactions-table .date-group th,
+		.transactions-table .date-group td {
+			display: block;
+			border: 0;
+			padding: 0;
+		}
+
+		.transactions-table .date-group td:nth-last-child(2) {
+			display: flex;
+			margin-top: 0.25rem;
+		}
+
+		.transactions-table .date-group td:last-child {
+			display: none;
 		}
 
 		.transactions-table td {
