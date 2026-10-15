@@ -11,6 +11,14 @@
 	import PSEGLogo from '$lib/PSEGLogo.svelte';
 	import VerizonLogo from '$lib/VerizonFiosLogo.svelte';
 	import Nav from '$lib/Nav.svelte';
+	import {
+		DEFAULT_SHORTCUTS,
+		LOGO_KEYS,
+		SHORTCUTS_STORAGE_KEY,
+		loadShortcuts,
+		saveShortcuts,
+		sanitizeShortcuts
+	} from '$lib/shortcuts.js';
 	import { calculateRequiredTransfer, groupTransactionsByDate } from '$lib/checking.js';
 
 	const easternTimezone = 'America/New_York'; // Set timezone to Eastern
@@ -631,15 +639,53 @@
 	$: requiredTransfer = calculateRequiredTransfer(checkingTransactions, minimumCheckingBalance);
 
 	// Reactive declarations for each button state - force dependency on checkingTransactions
-	$: hasRent = checkingTransactions.some((t) => t.title === 'Rent');
-	$: hasAutoLoan = checkingTransactions.some((t) => t.title === 'Auto Loan');
-	$: hasChaseCreditCard = checkingTransactions.some((t) => t.title === 'Chase Credit Card');
-	$: hasTargetCreditCard = checkingTransactions.some((t) => t.title === 'Target Credit Card');
-	$: hasAmazonStoreCard = checkingTransactions.some((t) => t.title === 'Amazon Store Card');
-	$: hasRYNJTuition = checkingTransactions.some((t) => t.title === 'RYNJ Tuition');
-	// $: hasRYNJRegistration = checkingTransactions.some((t) => t.title === 'RYNJ Registration');
-	$: hasPSEG = checkingTransactions.some((t) => t.title === 'PSEG');
-	$: hasVerizon = checkingTransactions.some((t) => t.title === 'Verizon');
+	/** @type {import('$lib/shortcuts.js').Shortcut[]} */
+	let shortcuts = structuredClone(DEFAULT_SHORTCUTS);
+	let editingShortcuts = false;
+
+	function persistShortcuts() {
+		saveShortcuts(sanitizeShortcuts(shortcuts) ?? []);
+	}
+
+	/** @param {import('$lib/shortcuts.js').Shortcut} shortcut */
+	function applyShortcut(shortcut) {
+		setShortcut(shortcut.amount, getUpcomingDate(shortcut.day));
+		type = shortcut.type;
+		title = shortcut.title;
+		account = shortcut.account;
+		transferTo = shortcut.type === 'transfer' ? shortcut.transferTo : '';
+	}
+
+	function addShortcut() {
+		shortcuts = [
+			...shortcuts,
+			{ label: 'New shortcut', title: 'New shortcut', type: 'debit', amount: '', day: 1, account: 'checking', transferTo: '', logo: '' }
+		];
+		persistShortcuts();
+	}
+
+	/** @param {number} i */
+	function removeShortcut(i) {
+		shortcuts = shortcuts.filter((_, idx) => idx !== i);
+		persistShortcuts();
+	}
+
+	/**
+	 * @param {number} i
+	 * @param {number} delta
+	 */
+	function moveShortcut(i, delta) {
+		const copy = [...shortcuts];
+		[copy[i], copy[i + delta]] = [copy[i + delta], copy[i]];
+		shortcuts = copy;
+		persistShortcuts();
+	}
+
+	function resetShortcuts() {
+		if (!confirm('Reset shortcut buttons to defaults?')) return;
+		shortcuts = structuredClone(DEFAULT_SHORTCUTS);
+		localStorage.removeItem(SHORTCUTS_STORAGE_KEY);
+	}
 
 	/**
 	 * @param {string | number | bigint} amount
@@ -672,6 +718,7 @@
 	import { onMount } from 'svelte';
 
 	onMount(() => {
+		shortcuts = loadShortcuts();
 		const storedMinimumBalance = localStorage.getItem('minimumCheckingBalance');
 		const parsedMinimumBalance = Number(storedMinimumBalance);
 		if (
@@ -868,98 +915,74 @@
 	</div>
 
 	<div class="shortcut-buttons">
+		{#each shortcuts as shortcut}
+			<button
+				class:credit-button={shortcut.type === 'credit' || shortcut.type === 'transfer'}
+				class:addressed={shortcut.type === 'debit' &&
+					checkingTransactions.some((t) => t.title === shortcut.title)}
+				on:click={() => applyShortcut(shortcut)}
+				>{#if shortcut.logo === 'chase'}<ChaseLogo />{:else if shortcut.logo === 'target'}<TargetLogo
+					/>{:else if shortcut.logo === 'amazon'}<AmazonLogo />{:else if shortcut.logo === 'pseg'}<PSEGLogo
+					/>{:else if shortcut.logo === 'verizon'}<VerizonLogo />{/if}
+				{shortcut.label || shortcut.title}</button
+			>
+		{/each}
 		<button
-			class="credit-button"
-			on:click={() => {
-				setShortcut('', getUpcomingDate(1));
-				type = 'credit';
-				account = 'savings';
-				title = 'Deposit to Savings';
-			}}>💰 Deposit to Savings</button
+			class="edit-shortcuts-button"
+			class:active={editingShortcuts}
+			on:click={() => (editingShortcuts = !editingShortcuts)}
+			>⚙️ {editingShortcuts ? 'Close' : 'Edit shortcuts'}</button
 		>
-		<button
-			class="credit-button"
-			on:click={() => {
-				setShortcut('', getUpcomingDate(1));
-				type = 'transfer';
-				transferTo = 'checking';
-				account = 'savings';
-				title = 'Transfer from Savings';
-			}}>🔄 Transfer from Savings</button
-		>
-		<button
-			class:addressed={hasRent}
-			on:click={() => {
-				setShortcut('3445', getUpcomingDate(1));
-				type = 'debit';
-				title = 'Rent';
-			}}>Rent</button
-		>
-		<button
-			class:addressed={hasAutoLoan}
-			on:click={() => {
-				setShortcut('723.5', getUpcomingDate(8));
-				type = 'debit';
-				title = 'Auto Loan';
-			}}>🚗 Auto Loan</button
-		>
-		<button
-			class:addressed={hasChaseCreditCard}
-			on:click={() => {
-				setShortcut('', getUpcomingDate(8));
-				type = 'debit';
-				title = 'Chase Credit Card';
-			}}><ChaseLogo /> Chase Credit Card</button
-		>
-		<button
-			class:addressed={hasTargetCreditCard}
-			on:click={() => {
-				setShortcut('', getUpcomingDate(8));
-				type = 'debit';
-				title = 'Target Credit Card';
-			}}><TargetLogo /> Target Credit Card</button
-		>
-		<button
-			class:addressed={hasAmazonStoreCard}
-			on:click={() => {
-				setShortcut('', getUpcomingDate(8));
-				type = 'debit';
-				title = 'Amazon Store Card';
-			}}><AmazonLogo /> Amazon Store Card</button
-		>
-		<button
-			class:addressed={hasPSEG}
-			on:click={() => {
-				setShortcut('269', getUpcomingDate(8));
-				type = 'debit';
-				title = 'PSEG';
-			}}><PSEGLogo /> PSEG</button
-		>
-		<button
-			class:addressed={hasVerizon}
-			on:click={() => {
-				setShortcut('49.99', getUpcomingDate(18));
-				type = 'debit';
-				title = 'Verizon';
-			}}><VerizonLogo /> Verizon</button
-		>
-		<button
-			class:addressed={hasRYNJTuition}
-			on:click={() => {
-				setShortcut('355', getUpcomingDate(15));
-				type = 'debit';
-				title = 'RYNJ Tuition';
-			}}>🎓 RYNJ Tuition</button
-		>
-		<!-- <button
-			class:addressed={hasRYNJRegistration}
-			on:click={() => {
-				setShortcut('50', getUpcomingDate(1));
-				type = 'debit';
-				title = 'RYNJ Registration';
-			}}>RYNJ Registration</button
-		> -->
 	</div>
+
+	{#if editingShortcuts}
+		<div class="shortcut-editor">
+			{#each shortcuts as shortcut, i}
+				<div class="shortcut-card">
+					<label class="wide">Label<input bind:value={shortcut.label} on:input={persistShortcuts} /></label>
+					<label class="wide">Title<input bind:value={shortcut.title} on:input={persistShortcuts} /></label>
+					<label>Type
+						<select bind:value={shortcut.type} on:change={persistShortcuts}>
+							<option value="credit">credit</option>
+							<option value="debit">debit</option>
+							<option value="transfer">transfer</option>
+						</select>
+					</label>
+					<label>Amount<input bind:value={shortcut.amount} on:input={persistShortcuts} inputmode="decimal" /></label>
+					<label>Day<input type="number" min="1" max="31" bind:value={shortcut.day} on:input={persistShortcuts} /></label>
+					<label>Account
+						<select bind:value={shortcut.account} on:change={persistShortcuts}>
+							<option value="checking">checking</option>
+							<option value="savings">savings</option>
+						</select>
+					</label>
+					<label>Transfer to
+						<select bind:value={shortcut.transferTo} on:change={persistShortcuts}>
+							<option value="">-</option>
+							<option value="checking">checking</option>
+							<option value="savings">savings</option>
+						</select>
+					</label>
+					<label>Logo
+						<select bind:value={shortcut.logo} on:change={persistShortcuts}>
+							{#each LOGO_KEYS as key}
+								<option value={key}>{key || '-'}</option>
+							{/each}
+						</select>
+					</label>
+					<div class="shortcut-row-actions wide">
+						<button disabled={i === 0} on:click={() => moveShortcut(i, -1)}>↑</button>
+						<button disabled={i === shortcuts.length - 1} on:click={() => moveShortcut(i, 1)}>↓</button>
+						<button on:click={() => removeShortcut(i)}>🗑 Remove</button>
+					</div>
+				</div>
+			{/each}
+			<div class="shortcut-editor-actions">
+				<button on:click={addShortcut}>+ Add shortcut</button>
+				<button on:click={resetShortcuts}>Reset to defaults</button>
+			</div>
+		</div>
+	{/if}
 
 	<div class="accounts-tables-container">
 		<div class="account-section">
@@ -1361,6 +1384,78 @@
 		flex-wrap: wrap;
 		gap: 0.5rem;
 		margin-bottom: 1rem;
+	}
+
+	.shortcut-editor {
+		padding: 0.75rem;
+		border: 2px dashed var(--color-accent-blue);
+		border-radius: 10px;
+		background: color-mix(in srgb, var(--color-accent-blue) 6%, transparent);
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+		gap: 0.75rem;
+		margin-bottom: 1rem;
+	}
+	.edit-shortcuts-button {
+		margin-left: auto;
+		background: transparent;
+		border: 2px dashed var(--color-accent-blue);
+		color: var(--color-accent-blue);
+		font-weight: 600;
+	}
+	.edit-shortcuts-button:hover {
+		background: color-mix(in srgb, var(--color-accent-blue) 15%, transparent);
+	}
+	.edit-shortcuts-button.active {
+		background: var(--color-accent-blue);
+		color: #fff;
+		border-style: solid;
+	}
+	.shortcut-card {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.5rem;
+		padding: 0.75rem;
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-left: 4px solid var(--color-accent-blue);
+		border-radius: 8px;
+		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+	}
+	.shortcut-card label {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+		font-size: 0.75rem;
+		color: var(--color-text-secondary);
+	}
+	.shortcut-card .wide { grid-column: 1 / -1; }
+	.shortcut-card input,
+	.shortcut-card select {
+		width: 100%;
+		box-sizing: border-box;
+		padding: 0.35rem 0.5rem;
+		border: 1px solid var(--color-border);
+		border-radius: 4px;
+		background: var(--color-bg);
+		color: var(--color-text-primary);
+		font-size: 0.9rem;
+	}
+	.shortcut-card input:focus,
+	.shortcut-card select:focus {
+		outline: none;
+		border-color: var(--color-accent-blue);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent-blue) 25%, transparent);
+	}
+	.shortcut-row-actions {
+		display: flex;
+		gap: 0.4rem;
+	}
+	.shortcut-row-actions button:last-child { margin-left: auto; }
+	.shortcut-editor-actions {
+		grid-column: 1 / -1;
+		display: flex;
+		gap: 0.5rem;
 	}
 
 	/* ── Account tables ── */
