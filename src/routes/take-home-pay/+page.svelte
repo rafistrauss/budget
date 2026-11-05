@@ -70,7 +70,7 @@
 	$: scenarioAnnualDelta = scenarioAnnualTakeHome - currentAnnualTakeHome;
 
 	$: typedCurrentYear =
-		/** @type {'2023'|'2024'|'2025'|'2026'} */ (/** @type {any} */ (currentYear));
+		/** @type {'2023'|'2024'|'2025'|'2026'|'2027'} */ (/** @type {any} */ (currentYear));
 
 	function initScenarioFromCurrent() {
 		scenarioSalary1 = yearlySalary1;
@@ -446,6 +446,7 @@
 						<option value="2024">2024</option>
 						<option value="2025">2025</option>
 						<option value="2026">2026</option>
+						<option value="2027">2027 (projected)</option>
 					</select>
 				</div>
 				<div class="field">

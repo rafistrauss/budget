@@ -10,7 +10,7 @@
 	} from '$lib';
 	import TaxesDisplay from './TaxesDisplay.svelte';
 
-	export let /** @type {'2023'|'2024'|'2025'|'2026'} */
+	export let /** @type {'2023'|'2024'|'2025'|'2026'|'2027'} */
 		currentYear = '2023',
 		currentState = 'New York',
 		workState = 'New Jersey',
@@ -161,6 +161,20 @@
 		totalBiweeklyTakeHome = (biweeklyTakeHomes[0] || 0) + (biweeklyTakeHomes[1] || 0);
 	}
 </script>
+
+{#if currentYear === '2027'}
+	<p class="taxable-label">
+		2027 estimate: federal brackets and standard deductions use
+		<a
+			href="https://tax.thomsonreuters.com/news/key-2027-figures-calculated-by-thomson-reuters-checkpoint-based-on-inflation-data-now-available/"
+			target="_blank"
+			rel="noreferrer">Thomson Reuters projections</a
+		>. State and city rates and deductions use the app's 2026 assumptions. Social Security
+		uses the <a href="https://www.ssa.gov/oact/COLA/cbb.html" target="_blank" rel="noreferrer"
+			>announced 2027 wage base</a
+		> of $192,300.
+	</p>
+{/if}
 
 <!-- Take-home summary cards -->
 <div class="breakdown-header">
