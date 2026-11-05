@@ -10,7 +10,7 @@
 	} from '$lib';
 	import TaxesDisplay from './TaxesDisplay.svelte';
 
-	export let /** @type {'2023'|'2024'|'2025'|'2026'} */
+	export let /** @type {'2023'|'2024'|'2025'|'2026'|'2027'} */
 		currentYear = '2023',
 		currentState = 'New York',
 		workState = 'New Jersey',
@@ -162,6 +162,20 @@
 	}
 </script>
 
+{#if currentYear === '2027'}
+	<p class="taxable-label">
+		2027 federal brackets and standard deductions match the
+		<a
+			href="https://www.cnbc.com/2026/11/05/2027-federal-tax-brackets.html"
+			target="_blank"
+			rel="noreferrer">IRS announcement reported by CNBC</a
+		>. State and city rates and deductions use the app's 2026 assumptions. Social Security
+		uses the <a href="https://www.ssa.gov/oact/COLA/cbb.html" target="_blank" rel="noreferrer"
+			>announced 2027 wage base</a
+		> of $192,300.
+	</p>
+{/if}
+
 <!-- Take-home summary cards -->
 <div class="breakdown-header">
 	<h2 class="breakdown-title">Tax Breakdown</h2>
@@ -215,6 +229,19 @@
 />
 
 <style>
+	a, a:visited {
+		color: #2c5fa8;
+		text-underline-offset: 0.15em;
+	}
+
+	:global(.dark-mode) a, :global(.dark-mode) a:visited {
+		color: #7dbeff;
+	}
+
+	a:hover, a:focus-visible {
+		text-decoration-thickness: 2px;
+	}
+
 	.breakdown-header {
 		display: flex;
 		align-items: baseline;
