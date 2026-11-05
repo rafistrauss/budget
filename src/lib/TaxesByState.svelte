@@ -229,6 +229,19 @@
 />
 
 <style>
+	a, a:visited {
+		color: #2c5fa8;
+		text-underline-offset: 0.15em;
+	}
+
+	:global(.dark-mode) a, :global(.dark-mode) a:visited {
+		color: #7dbeff;
+	}
+
+	a:hover, a:focus-visible {
+		text-decoration-thickness: 2px;
+	}
+
 	.breakdown-header {
 		display: flex;
 		align-items: baseline;

@@ -22,3 +22,8 @@ rates and deductions carry forward the app's existing 2026 assumptions.
 Tax bracket limits are cumulative taxable-income ceilings; the calculator applies
 each rate only to the income between successive ceilings. This correction also
 affects calculations for earlier years.
+
+For a midyear raise, enter the original yearly salary, choose the month the change
+starts, and enter the new yearly salary. A March 1 change uses two months at the
+original rate and ten at the new rate. Taxes and percentage contributions use the
+combined annual earnings; monthly and biweekly figures are averages for the year.

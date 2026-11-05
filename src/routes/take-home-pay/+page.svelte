@@ -8,13 +8,25 @@
 	import { formatAsCurrency, safelyGetLocalStorage, safelySetLocalStorage } from '$lib';
 	import { darkMode } from '$lib/darkModeStore.js';
 	import TaxesByState from '$lib/TaxesByState.svelte';
+	import SalaryChange from '$lib/SalaryChange.svelte';
+	import { annualSalaryForYear } from '$lib/salary.js';
 	import Nav from '$lib/Nav.svelte';
 	import AuthBar from '$lib/AuthBar.svelte';
 	import { auth, db } from '$lib/firebase.js';
 
 	let currentUser = auth.currentUser;
+	let salaryIncreasePercentage1 = 0;
+
+	function applySalaryIncrease() {
+		const increased =
+			(Number(yearlySalary1) || 0) * (1 + (Number(salaryIncreasePercentage1) || 0) / 100);
+		if (salaryChangeMonth1 > 0) salaryAfterChange1 = increased;
+		else yearlySalary1 = increased;
+	}
 
 	let yearlySalary1 = 100000;
+	let salaryChangeMonth1 = 0;
+	let salaryAfterChange1 = 100000;
 	let bonusPercentage1 = 5;
 	let _401kContributionPercentage1 = 3;
 	let health_care_fsa_contribution_1 = 100;
@@ -24,6 +36,8 @@
 	let annual_vision_deduction_1 = 12;
 
 	let yearlySalary2 = 0;
+	let salaryChangeMonth2 = 0;
+	let salaryAfterChange2 = 0;
 	let bonusPercentage2 = 0;
 	let _401kContributionPercentage2 = 0;
 	let health_care_fsa_contribution_2 = 0;
@@ -69,13 +83,16 @@
 	$: scenarioBiweeklyDelta = scenarioBiweeklyTakeHome - currentBiweeklyTakeHome;
 	$: scenarioAnnualDelta = scenarioAnnualTakeHome - currentAnnualTakeHome;
 
+	$: annualEarnedSalary1 = annualSalaryForYear(yearlySalary1, salaryAfterChange1, salaryChangeMonth1);
+	$: annualEarnedSalary2 = annualSalaryForYear(yearlySalary2, salaryAfterChange2, salaryChangeMonth2);
+
 	$: typedCurrentYear =
 		/** @type {'2023'|'2024'|'2025'|'2026'|'2027'} */ (/** @type {any} */ (currentYear));
 
 	function initScenarioFromCurrent() {
-		scenarioSalary1 = yearlySalary1;
+		scenarioSalary1 = annualEarnedSalary1;
 		scenario401kContributionPercentage1 = _401kContributionPercentage1;
-		scenarioSalary2 = yearlySalary2;
+		scenarioSalary2 = annualEarnedSalary2;
 		scenario401kContributionPercentage2 = _401kContributionPercentage2;
 	}
 
@@ -141,10 +158,10 @@
 		yearly401kContribution2;
 
 	$: {
-		yearlyBonus1 = (yearlySalary1 || 0) * ((bonusPercentage1 || 0) / 100);
-		yearly401kContribution1 = (yearlySalary1 || 0) * ((_401kContributionPercentage1 || 0) / 100);
-		yearlyBonus2 = (yearlySalary2 || 0) * ((bonusPercentage2 || 0) / 100);
-		yearly401kContribution2 = (yearlySalary2 || 0) * ((_401kContributionPercentage2 || 0) / 100);
+		yearlyBonus1 = (annualEarnedSalary1 || 0) * ((bonusPercentage1 || 0) / 100);
+		yearly401kContribution1 = (annualEarnedSalary1 || 0) * ((_401kContributionPercentage1 || 0) / 100);
+		yearlyBonus2 = (annualEarnedSalary2 || 0) * ((bonusPercentage2 || 0) / 100);
+		yearly401kContribution2 = (annualEarnedSalary2 || 0) * ((_401kContributionPercentage2 || 0) / 100);
 	}
 
 	/**
@@ -190,6 +207,8 @@
 	 */
 	function loadCalculatorData(data) {
 		yearlySalary1 = Number(data['yearly_salary_1'] ?? yearlySalary1) || 0;
+		salaryChangeMonth1 = Number(data['salary_change_month_1'] ?? 0);
+		salaryAfterChange1 = Number(data['salary_after_change_1'] ?? yearlySalary1) || 0;
 		bonusPercentage1 = Number(data['expected_bonus_1'] ?? bonusPercentage1) || 0;
 		_401kContributionPercentage1 =
 			Number(data['401k_contribution_1'] ?? _401kContributionPercentage1) || 0;
@@ -231,6 +250,8 @@
 		);
 
 		yearlySalary2 = Number(data['yearly_salary_2'] ?? yearlySalary2) || 0;
+		salaryChangeMonth2 = Number(data['salary_change_month_2'] ?? 0);
+		salaryAfterChange2 = Number(data['salary_after_change_2'] ?? yearlySalary2) || 0;
 		bonusPercentage2 = Number(data['expected_bonus_2'] ?? bonusPercentage2) || 0;
 		_401kContributionPercentage2 =
 			Number(data['401k_contribution_2'] ?? _401kContributionPercentage2) || 0;
@@ -330,6 +351,8 @@
 					doc(db, 'users', currentUser.uid),
 					{
 						yearly_salary_1: yearlySalary1,
+						salary_change_month_1: salaryChangeMonth1,
+						salary_after_change_1: salaryAfterChange1,
 						expected_bonus_1: bonusPercentage1,
 						'401k_contribution_1': _401kContributionPercentage1,
 						deduction_input_period_1: deductionInputPeriod1,
@@ -339,6 +362,8 @@
 						annual_dental_deduction_1: annual_dental_deduction_1,
 						annual_vision_deduction_1: annual_vision_deduction_1,
 						yearly_salary_2: yearlySalary2,
+						salary_change_month_2: salaryChangeMonth2,
+						salary_after_change_2: salaryAfterChange2,
 						expected_bonus_2: bonusPercentage2,
 						'401k_contribution_2': _401kContributionPercentage2,
 						deduction_input_period_2: deductionInputPeriod2,
@@ -359,6 +384,8 @@
 				// Save to local storage for unsigned users
 				const userData = {
 					yearly_salary_1: yearlySalary1,
+					salary_change_month_1: salaryChangeMonth1,
+					salary_after_change_1: salaryAfterChange1,
 					expected_bonus_1: bonusPercentage1,
 					'401k_contribution_1': _401kContributionPercentage1,
 					deduction_input_period_1: deductionInputPeriod1,
@@ -368,6 +395,8 @@
 					annual_dental_deduction_1: annual_dental_deduction_1,
 					annual_vision_deduction_1: annual_vision_deduction_1,
 					yearly_salary_2: yearlySalary2,
+					salary_change_month_2: salaryChangeMonth2,
+					salary_after_change_2: salaryAfterChange2,
 					expected_bonus_2: bonusPercentage2,
 					'401k_contribution_2': _401kContributionPercentage2,
 					deduction_input_period_2: deductionInputPeriod2,
@@ -470,9 +499,9 @@
 		<!-- Summary cards -->
 		<section class="summary-row">
 			<div class="summary-card">
-				<div class="summary-label">Gross Monthly Income</div>
+				<div class="summary-label">Average Gross Monthly Income</div>
 				<div class="summary-amount">
-					{formatAsCurrency(yearlySalary1 / 12 + yearlySalary2 / 12)}
+					{formatAsCurrency(annualEarnedSalary1 / 12 + annualEarnedSalary2 / 12)}
 				</div>
 			</div>
 			<div class="summary-card">
@@ -506,16 +535,19 @@
 								<span class="field-label">Yearly Salary</span>
 								<input type="number" bind:value={yearlySalary1} />
 							</div>
+							<SalaryChange
+								salary={yearlySalary1}
+								bind:newSalary={salaryAfterChange1}
+								bind:changeMonth={salaryChangeMonth1}
+							/>
 							<div class="field">
 								<span class="field-label">Increase Salary by (%)</span>
+								<span class="field-hint">Applies to the new salary when a change month is selected.</span>
 								<div class="field-row">
-									<input type="number" id="salaryIncreasePercentage1" class="flex-input" />
+									<input type="number" bind:value={salaryIncreasePercentage1} class="flex-input" />
 									<button
 										class="btn-secondary btn-sm"
-										on:click={() =>
-											(yearlySalary1 +=
-												yearlySalary1 *
-												(document.getElementById('salaryIncreasePercentage1').value / 100))}
+										on:click={applySalaryIncrease}
 										>Apply</button
 									>
 								</div>
@@ -646,6 +678,11 @@
 								<span class="field-label">Yearly Salary</span>
 								<input type="number" bind:value={yearlySalary2} />
 							</div>
+							<SalaryChange
+								salary={yearlySalary2}
+								bind:newSalary={salaryAfterChange2}
+								bind:changeMonth={salaryChangeMonth2}
+							/>
 							<div class="field">
 								<span class="field-label">Expected Bonus (%)</span>
 								<input type="number" bind:value={bonusPercentage2} />
@@ -801,7 +838,7 @@
 					dependent_care_fsa_contribution_1,
 					dependent_care_fsa_contribution_2
 				]}
-				yearlySalaries={[yearlySalary1, yearlySalary2]}
+				yearlySalaries={[annualEarnedSalary1, annualEarnedSalary2]}
 				contributionPercentages={[_401kContributionPercentage1, _401kContributionPercentage2]}
 				{interval}
 				monthlyDentalContributions={[
@@ -866,6 +903,7 @@
 				</div>
 
 				<span class="field-hint">
+					Scenario salaries are total earnings for the year, including any salary changes.
 					Deductions, FSA, state, and tax year are taken from your current inputs above.
 				</span>
 
