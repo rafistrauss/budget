@@ -91,8 +91,8 @@ export const medicareTaxRates = {
 	]
 };
 
-// 2027 federal figures are projections, checked November 5, 2026:
-// https://tax.thomsonreuters.com/news/key-2027-figures-calculated-by-thomson-reuters-checkpoint-based-on-inflation-data-now-available/
+// 2027 federal figures match the IRS announcement reported by CNBC on November 5, 2026:
+// https://www.cnbc.com/2026/11/05/2027-federal-tax-brackets.html
 // 2027 state/city rates and deductions carry forward the existing 2026 assumptions.
 export const standardDeductions = {
 	2023: {

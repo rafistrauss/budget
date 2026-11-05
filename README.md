@@ -13,9 +13,9 @@ Deployments:
 - Production: `https://rafistrauss.github.io/budget/`
 - Pull request previews: `https://rafistrauss.github.io/budget/pr-preview/pr-<number>/`
 
-The take-home calculator supports 2023–2027. The 2027 option is a planning estimate:
-federal brackets and standard deductions use [Thomson Reuters projections](https://tax.thomsonreuters.com/news/key-2027-figures-calculated-by-thomson-reuters-checkpoint-based-on-inflation-data-now-available/)
-(checked November 5, 2026), pending official IRS figures. Social Security uses the
+The take-home calculator supports 2023–2027. The 2027 federal brackets and standard
+deductions match the [IRS announcement reported by CNBC](https://www.cnbc.com/2026/11/05/2027-federal-tax-brackets.html)
+on November 5, 2026. Social Security uses the
 [announced $192,300 wage base](https://www.ssa.gov/oact/COLA/cbb.html). State and city
 rates and deductions carry forward the app's existing 2026 assumptions.
 

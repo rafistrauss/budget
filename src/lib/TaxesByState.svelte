@@ -164,11 +164,11 @@
 
 {#if currentYear === '2027'}
 	<p class="taxable-label">
-		2027 estimate: federal brackets and standard deductions use
+		2027 federal brackets and standard deductions match the
 		<a
-			href="https://tax.thomsonreuters.com/news/key-2027-figures-calculated-by-thomson-reuters-checkpoint-based-on-inflation-data-now-available/"
+			href="https://www.cnbc.com/2026/11/05/2027-federal-tax-brackets.html"
 			target="_blank"
-			rel="noreferrer">Thomson Reuters projections</a
+			rel="noreferrer">IRS announcement reported by CNBC</a
 		>. State and city rates and deductions use the app's 2026 assumptions. Social Security
 		uses the <a href="https://www.ssa.gov/oact/COLA/cbb.html" target="_blank" rel="noreferrer"
 			>announced 2027 wage base</a

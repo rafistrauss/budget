@@ -24,7 +24,7 @@ describe('progressive tax calculation', () => {
 	});
 });
 
-describe('projected 2027 federal taxes', () => {
+describe('2027 federal taxes', () => {
 	it.each([
 		[12800, 1280],
 		[52025, 5987],
