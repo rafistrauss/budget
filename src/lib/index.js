@@ -31,6 +31,7 @@ export function calculateTax(taxableIncome, taxRates, deduction = 0) {
 	const incomeInCents = Math.round(adjustedTaxableIncome * 100); // Convert taxable income to cents
 	let taxAmount = 0;
 	let remainingIncome = incomeInCents;
+	let previousLimitInCents = 0;
 
 	for (const bracket of taxRates.rates) {
 		if (remainingIncome <= 0) {
@@ -39,15 +40,17 @@ export function calculateTax(taxableIncome, taxRates, deduction = 0) {
 
 		const { limit, rate } = bracket;
 		const limitInCents = Math.round(limit * 100); // Convert limit to cents
-		const taxableInBracket = Math.min(remainingIncome, limitInCents);
+		const taxableInBracket = Math.min(remainingIncome, limitInCents - previousLimitInCents);
 		const bracketTax = Math.round(taxableInBracket * rate);
 		taxAmount += bracketTax;
 		remainingIncome -= taxableInBracket;
+		previousLimitInCents = limitInCents;
 	}
 
 	return taxAmount / 100; // Convert tax amount back to dollars
 }
 
+// 2027 Social Security wage base: https://www.ssa.gov/oact/COLA/cbb.html
 export const socialSecurityTaxRates = {
 	2023: {
 		rates: [
@@ -72,6 +75,12 @@ export const socialSecurityTaxRates = {
 			{ limit: 176_100, rate: 0.062 },
 			{ limit: Infinity, rate: 0 }
 		]
+	},
+	2027: {
+		rates: [
+			{ limit: 192_300, rate: 0.062 },
+			{ limit: Infinity, rate: 0 }
+		]
 	}
 };
 
@@ -82,6 +91,9 @@ export const medicareTaxRates = {
 	]
 };
 
+// 2027 federal figures match the IRS announcement reported by CNBC on November 5, 2026:
+// https://www.cnbc.com/2026/11/05/2027-federal-tax-brackets.html
+// 2027 state/city rates and deductions carry forward the existing 2026 assumptions.
 export const standardDeductions = {
 	2023: {
 		joint: {
@@ -169,6 +181,30 @@ export const standardDeductions = {
 		},
 		single: {
 			federal: 15000,
+			'New York': {
+				state: 8000,
+				city: 0
+			},
+			'New Jersey': {
+				state: 0,
+				city: 0
+			}
+		}
+	},
+	2027: {
+		joint: {
+			federal: 33200,
+			'New York': {
+				state: 18000,
+				city: 0
+			},
+			'New Jersey': {
+				state: 0,
+				city: 0
+			}
+		},
+		single: {
+			federal: 16600,
 			'New York': {
 				state: 8000,
 				city: 0
@@ -315,6 +351,39 @@ export const taxRatesFilingSingle = {
 				{ limit: 197_300, rate: 0.24 },
 				{ limit: 250_525, rate: 0.32 },
 				{ limit: 626_350, rate: 0.35 },
+				{ limit: Infinity, rate: 0.37 }
+			]
+		}
+	},
+	2027: {
+		'New York': {
+			rates: [
+				{ limit: 13_150, rate: 0.04 },
+				{ limit: 21_400, rate: 0.045 },
+				{ limit: 80_650, rate: 0.0525 },
+				{ limit: 215_400, rate: 0.059 },
+				{ limit: Infinity, rate: 0.0633 }
+			]
+		},
+		'New Jersey': {
+			rates: [
+				{ limit: 20_000, rate: 0.014 },
+				{ limit: 35_000, rate: 0.0175 },
+				{ limit: 40_000, rate: 0.035 },
+				{ limit: 75_000, rate: 0.05525 },
+				{ limit: 150_000, rate: 0.0637 },
+				{ limit: 500_000, rate: 0.0897 },
+				{ limit: Infinity, rate: 0.1075 }
+			]
+		},
+		Federal: {
+			rates: [
+				{ limit: 12_800, rate: 0.1 },
+				{ limit: 52_025, rate: 0.12 },
+				{ limit: 109_125, rate: 0.22 },
+				{ limit: 208_325, rate: 0.24 },
+				{ limit: 264_550, rate: 0.32 },
+				{ limit: 661_375, rate: 0.35 },
 				{ limit: Infinity, rate: 0.37 }
 			]
 		}
@@ -477,9 +546,45 @@ export const taxRatesFilingJointly = {
 				{ limit: Infinity, rate: 0.37 }
 			]
 		}
+	},
+	2027: {
+		'New York': {
+			rates: [
+				{ limit: 17150, rate: 0.04 },
+				{ limit: 23600, rate: 0.045 },
+				{ limit: 27900, rate: 0.0525 },
+				{ limit: 161550, rate: 0.055 },
+				{ limit: 323200, rate: 0.06 },
+				{ limit: 2155350, rate: 0.0685 },
+				{ limit: 5_000_000, rate: 0.0965 },
+				{ limit: 25_000_000, rate: 0.103 },
+				{ limit: Infinity, rate: 0.109 }
+			]
+		},
+		'New Jersey': {
+			rates: [
+				{ limit: 20_000, rate: 0.014 },
+				{ limit: 35_000, rate: 0.0175 },
+				{ limit: 40_000, rate: 0.035 },
+				{ limit: 75_000, rate: 0.05525 },
+				{ limit: 150_000, rate: 0.0637 },
+				{ limit: 500_000, rate: 0.0897 },
+				{ limit: Infinity, rate: 0.1075 }
+			]
+		},
+		Federal: {
+			rates: [
+				{ limit: 25_600, rate: 0.1 },
+				{ limit: 104_050, rate: 0.12 },
+				{ limit: 218_250, rate: 0.22 },
+				{ limit: 416_650, rate: 0.24 },
+				{ limit: 529_100, rate: 0.32 },
+				{ limit: 793_650, rate: 0.35 },
+				{ limit: Infinity, rate: 0.37 }
+			]
+		}
 	}
 };
-
 
 export const taxRatesFilingSingle_City = {
 	2023: {
@@ -513,6 +618,16 @@ export const taxRatesFilingSingle_City = {
 		}
 	},
 	2026: {
+		'New York': {
+			rates: [
+				{ limit: 12_000, rate: 0.03078 },
+				{ limit: 25_000, rate: 0.03762 },
+				{ limit: 50_000, rate: 0.03819 },
+				{ limit: Infinity, rate: 0.03867 }
+			]
+		}
+	},
+	2027: {
 		'New York': {
 			rates: [
 				{ limit: 12_000, rate: 0.03078 },
@@ -556,6 +671,16 @@ export const taxRatesFilingJointly_City = {
 		}
 	},
 	2026: {
+		'New York': {
+			rates: [
+				{ limit: 21_600, rate: 0.03078 },
+				{ limit: 45_000, rate: 0.03762 },
+				{ limit: 90_000, rate: 0.03819 },
+				{ limit: Infinity, rate: 0.03867 }
+			]
+		}
+	},
+	2027: {
 		'New York': {
 			rates: [
 				{ limit: 21_600, rate: 0.03078 },
